@@ -210,11 +210,18 @@
   body.dashview .facpanel .fgrp{flex:none;min-width:0;max-width:100%;overflow:hidden}
   body.learnerview .facpanel{display:none}
   body.learnerview .dashtop{border-bottom:none;padding:var(--space-2) var(--space-5)}
-  /* Prev/Next/Reset row for the CT-surgery stepped scenarios */
+  /* Prev/Next/Reset row for the stepped scenarios in the scenario library */
   .scn{display:flex;gap:var(--space-2);margin-top:var(--space-2)}
   .scn button{flex:1;font-size:var(--font-base);padding:var(--space-3);border-radius:var(--radius-md);border:1px solid #2a333d;
     background:#161c24;color:#dbe3ec;cursor:pointer;text-align:center;line-height:1.25;touch-action:manipulation;transition:background .15s ease,border-color .15s ease}
   .scn button:hover{border-color:#3b82f6;background:#18222e}
+  .scn button:disabled{opacity:.4;cursor:not-allowed;border-color:#2a333d;background:#161c24}
+  /* one-click named-fault library (Faults & leads tab) */
+  .faultlib{display:grid;grid-template-columns:1fr 1fr;gap:var(--space-2);margin-top:var(--space-3)}
+  .faultbtn{font-size:var(--font-sm);padding:var(--space-2) var(--space-3);border-radius:var(--radius-md);border:1px solid #2a333d;
+    background:#161c24;color:#dbe3ec;cursor:pointer;text-align:left;line-height:1.3;touch-action:manipulation;transition:background .15s ease,border-color .15s ease}
+  .faultbtn:hover{border-color:#3b82f6;background:#18222e}
+  .faultbtn.act{border-color:#7a2a1e;background:#2a1410;color:#ff8a72}
   /* stacked fields: label on its own line, control full-width beneath — keeps everything inside the card */
   .frow{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2) var(--space-3);margin:var(--space-4) 0;min-width:0}
   .frow label{font-size:var(--font-base);font-weight:var(--fw-semibold);color:#c7d0da;flex:1 1 100%;min-width:0}
@@ -386,8 +393,9 @@
   </div>
 
   <div class="fgrp" data-tab="scenarios">
-    <h3>Quick scenarios</h3>
-    <select id="quickScn">
+    <h3>Scenario library</h3>
+    <div class="note">One-click rhythms and faults, plus preconfigured stepped CT-surgery cases — pick one, then advance with Next. Loading any scenario resets faults/connections first. Pairs with the HemoSphere &amp; IntelliVue sims.</div>
+    <select id="scnSel">
       <option value="">— load a scenario —</option>
       <optgroup label="Rhythms">
         <option value="chb">3° AV block + slow escape (default)</option>
@@ -416,27 +424,18 @@
       <optgroup label="Setup">
         <option value="threshtest">Threshold-test setup (VVI)</option>
       </optgroup>
-    </select>
-    <div class="note note-top">Loads rhythm, thresholds, and faults in one step. Then adjust the device to manage it.</div>
-  </div>
-
-  <div class="fgrp" id="ctScnGrp" data-tab="scenarios">
-    <h3>CT Surgery scenarios (stepped)</h3>
-    <div class="note">Preconfigured CTICU cases. Pick one, then advance through patient states with Next. Pairs with the HemoSphere &amp; IntelliVue sims.</div>
-    <div class="frow"><label>Scenario</label>
-      <select id="ctScn">
-        <option value="">— select —</option>
+      <optgroup label="CT Surgery (stepped)">
         <option value="tavr_chb">SCE 4 · Post-TAVR complete heart block</option>
         <option value="maze_pace">SCE 3 · Maze — pacing optimization</option>
         <option value="pod0_paced">SCE 2 · POD0 AV-paced baseline</option>
-      </select>
+      </optgroup>
+    </select>
+    <div class="scn" id="scnNav" style="display:none">
+      <button id="scnPrev">‹ Prev</button>
+      <button id="scnNext">Next ›</button>
+      <button id="scnReset">Reset</button>
     </div>
-    <div class="scn">
-      <button id="ctPrev">‹ Prev</button>
-      <button id="ctNext">Next ›</button>
-      <button id="ctReset">Reset</button>
-    </div>
-    <div class="hintbox" id="ctStep">No CT scenario loaded.</div>
+    <div class="hintbox" id="scnStep">No scenario loaded.</div>
   </div>
 
   <div class="fgrp" data-tab="rhythm">
@@ -486,6 +485,19 @@
     <div class="frow"><label>P-wave (atrial)</label><input type="range" id="f-asig" min="0.2" max="10" step="0.1" value="2.5"><span class="v" id="f-asig-v">2.5</span></div>
     <div class="frow"><label>R-wave (ventricular)</label><input type="range" id="f-vsig" min="0.5" max="20" step="0.5" value="10"><span class="v" id="f-vsig-v">10</span></div>
     <div class="hintbox">Device senses only when <b>Sensitivity setting (mV) ≤ signal amplitude</b>. Lower the R-wave to make ventricular sensing-threshold testing meaningful.</div>
+  </div>
+
+  <div class="fgrp" data-tab="faults">
+    <h3>Fault library — one click</h3>
+    <div class="note">Named, clinically common faults. Injecting one leaves the rest of the current setup (rhythm, rates, thresholds) untouched — hover a button for what it does.</div>
+    <div class="faultlib">
+      <button class="faultbtn" id="flt-capfail" data-fault="capfail" title="Raises the V threshold above the current V output — pacing spikes fire but nothing captures.">⚡ Loss of capture</button>
+      <button class="faultbtn" id="flt-undersense" data-fault="undersense" title="Weakens the sensed R-wave below the V sensitivity setting — intrinsic beats go unseen, risking competitive pacing.">🔇 Failure to sense</button>
+      <button class="faultbtn" id="flt-oversense" data-fault="oversense" title="Phantom V signals inhibit pacing even though the patient needs it.">📡 Oversensing / crosstalk</button>
+      <button class="faultbtn" id="flt-disconnect" data-fault="disconnect" title="Disconnects the V cable at the generator — no output, no sensing on that channel.">🔌 Lead / channel disconnect</button>
+      <button class="faultbtn" id="flt-battery" data-fault="battery" title="Battery fully depleted — device stops delivering output.">🔋 Battery depletion</button>
+      <button class="faultbtn" id="flt-competition" data-fault="competition" title="Switches to an accelerated idioventricular rhythm (AIVR) that competes with paced beats.">⚔ Rhythm competition</button>
+    </div>
   </div>
 
   <div class="fgrp" data-tab="faults">
@@ -1155,6 +1167,7 @@ function syncFac(){
   $('f-leadA').checked=!P.leadA; $('f-leadV').checked=!P.leadV; $('f-oversV').checked=P.oversV; $('f-oversA').checked=P.oversA; $('f-batt').value=P.batt;
   $('f-wire').value=conn.wire; $('f-discA').checked=!conn.aGen; $('f-discV').checked=!conn.vGen;
   $('rhythmHint').textContent=RHY[P.rhythm]?RHY[P.rhythm].hint:'';
+  syncFaultLib();
 }
 const SCN={
   chb:()=>set({rhythm:'chb',aRate:90,vRate:35,aThr:1.0,vThr:1.5,aSig:2.5,vSig:10}),
@@ -1180,25 +1193,16 @@ const SCN={
   lowbatt:()=>{ set({}); P.batt='low'; }
 };
 function set(o){ const r=o.rhythm||P.rhythm; const base=RHY[r]||{}; Object.assign(P,o); if(!('aRate'in o)&&base.aDef!=null)P.aRate=base.aDef; }
-/* shared by loadScenario() and the CT-surgery stepped scenarios (ctApply()) so both start every
-   scenario from the same clean baseline: leads intact, no oversensing, battery OK, all
-   connections made, and the AV-conduction-pattern counters reset. */
+/* shared by every entry in the unified scenario library (see SCENARIOS below) so each one starts
+   from the same clean baseline: leads intact, no oversensing, battery OK, all connections made,
+   and the AV-conduction-pattern counters reset. */
 function resetFaultsAndConnections(){
   P.leadA=true;P.leadV=true;P.oversV=false;P.oversA=false;P.batt='ok';
   conn.aGen=conn.aLead=conn.vGen=conn.vLead=true;
   wenckIdx=0;mobitz2Idx=0;pvcCount=0;pendingPVC=0;pendingConduction=[];
 }
-function loadScenario(key,label){
-  if(!SCN[key]) return;
-  resetFaultsAndConnections();
-  SCN[key](); syncFac();
-  if($('connModal').classList.contains('open'))drawConn();
-  if(key!=='threshtest') coach('Scenario loaded: '+(label||key)+'. Adjust the device to manage it.');
-}
-document.querySelectorAll('[data-scn]').forEach(b=>b.onclick=()=>loadScenario(b.dataset.scn,b.textContent.replace(/\s+/g,' ').trim()));
-const _quickScn=$('quickScn'); if(_quickScn) _quickScn.onchange=()=>{ if(_quickScn.value) loadScenario(_quickScn.value,_quickScn.options[_quickScn.selectedIndex].text); };
-
-/* ========= CT SURGERY STEPPED SCENARIOS ========= */
+/* ========= CT SURGERY STEPPED SCENARIOS =========
+   (data only — see the unified SCENARIOS library below for how these get applied) */
 const CTSCN={
   tavr_chb:{name:'SCE 4 · Post-TAVR complete heart block',steps:[
     {label:'Step 1/4 — Stable post-TAVR (sinus, intact conduction)',coach:'Baseline after TAVR: sinus ~72, 1:1 conduction. Monitor for new AV block; device on standby (DDD/VVI backup).',set:{rhythm:'sinus',aRate:72,vRate:0,vThr:1.5}},
@@ -1215,17 +1219,104 @@ const CTSCN={
     {label:'Step 1/1 — POD0 open-heart, AV-paced ~86',coach:'POD0 MVR/CABG with slow underlying — running 100% AV-paced ~86 in DDD. Context/monitoring preset; pairs with the bleeding→tamponade case on HemoSphere & IntelliVue.',set:{rhythm:'chb',aRate:96,vRate:40,aThr:1.0,vThr:1.2}},
   ]},
 };
-let ctId='',ctStep=0;
-function ctApply(){ const sc=CTSCN[ctId]; const ind=$('ctStep'); if(!sc){ if(ind)ind.textContent='No CT scenario loaded.'; return; }
-  const st=sc.steps[ctStep]; resetFaultsAndConnections(); set(st.set); syncFac();
-  if($('connModal')&&$('connModal').classList.contains('open'))drawConn();
-  if(ind) ind.innerHTML='<b>'+sc.name+'</b><br>'+st.label;
-  coach(st.coach); }
-function ctLoad(id){ ctId=id; ctStep=0; const ind=$('ctStep'); if(id) ctApply(); else if(ind) ind.textContent='No CT scenario loaded.'; }
-const _ctScn=$('ctScn'); if(_ctScn) _ctScn.onchange=()=>ctLoad(_ctScn.value);
-const _ctNext=$('ctNext'); if(_ctNext) _ctNext.onclick=()=>{ const sc=CTSCN[ctId]; if(sc&&ctStep<sc.steps.length-1){ctStep++;ctApply();} };
-const _ctPrev=$('ctPrev'); if(_ctPrev) _ctPrev.onclick=()=>{ const sc=CTSCN[ctId]; if(sc&&ctStep>0){ctStep--;ctApply();} };
-const _ctReset=$('ctReset'); if(_ctReset) _ctReset.onclick=()=>{ if(ctId){ctStep=0;ctApply();} };
+
+/* ========= UNIFIED SCENARIO LIBRARY =========
+   Folds the quick one-shot scenarios (SCN, above) and the CT-surgery stepped scenarios (CTSCN,
+   above) into one {name, steps:[{label, coach, apply}]} schema, so the facilitator has a single
+   dropdown + Prev/Next/Reset that works for both kinds. Built directly from SCN/CTSCN and the
+   <option> labels already in the DOM — no scenario value is retyped here, so behavior for every
+   existing scenario is unchanged.
+   'discV' and 'threshtest' already call coach() themselves inside their SCN function with a
+   scenario-specific message; every other quick scenario reuses the generic message
+   loadScenario() used to show. (Previously the generic message was shown unconditionally after
+   every quick scenario except threshtest, which meant discV's custom coaching line was
+   immediately overwritten by the generic one — fixed here by treating discV the same as
+   threshtest.) */
+const SELF_COACHING_QUICK={discV:1,threshtest:1};
+function quickScnLabel(key){ const opt=document.querySelector('#scnSel option[value="'+key+'"]'); return opt?opt.textContent:key; }
+const SCENARIOS={};
+Object.keys(SCN).forEach(key=>{
+  SCENARIOS[key]={ name:quickScnLabel(key), steps:[{
+    apply:()=>SCN[key](),
+    coach: SELF_COACHING_QUICK[key] ? null : ('Scenario loaded: '+quickScnLabel(key)+'. Adjust the device to manage it.')
+  }] };
+});
+Object.keys(CTSCN).forEach(key=>{
+  SCENARIOS[key]={ name:CTSCN[key].name, steps:CTSCN[key].steps.map(st=>({
+    label:st.label, coach:st.coach, apply:()=>set(st.set)
+  })) };
+});
+
+let scnId='', scnStep=0;
+function updateScnNav(){
+  const sc=SCENARIOS[scnId], multi=!!(sc&&sc.steps.length>1);
+  const nav=$('scnNav'); if(nav) nav.style.display=multi?'flex':'none';
+  const pb=$('scnPrev'), nb=$('scnNext');
+  if(pb) pb.disabled=!multi||scnStep===0;
+  if(nb) nb.disabled=!multi||scnStep>=(sc?sc.steps.length-1:0);
+}
+function scnApply(){
+  const sc=SCENARIOS[scnId], ind=$('scnStep');
+  if(!sc){ if(ind) ind.textContent='No scenario loaded.'; updateScnNav(); return; }
+  const st=sc.steps[scnStep];
+  resetFaultsAndConnections();
+  st.apply();
+  syncFac();
+  if($('connModal').classList.contains('open')) drawConn();
+  if(st.coach) coach(st.coach);
+  if(ind) ind.innerHTML = sc.steps.length>1 ? ('<b>'+sc.name+'</b><br>'+st.label) : ('<b>'+sc.name+'</b>');
+  updateScnNav();
+}
+function scnLoad(id){ scnId=id; scnStep=0; scnApply(); }
+const _scnSel=$('scnSel'); if(_scnSel) _scnSel.onchange=()=>scnLoad(_scnSel.value);
+const _scnNext=$('scnNext'); if(_scnNext) _scnNext.onclick=()=>{ const sc=SCENARIOS[scnId]; if(sc&&scnStep<sc.steps.length-1){scnStep++;scnApply();} };
+const _scnPrev=$('scnPrev'); if(_scnPrev) _scnPrev.onclick=()=>{ const sc=SCENARIOS[scnId]; if(sc&&scnStep>0){scnStep--;scnApply();} };
+const _scnReset=$('scnReset'); if(_scnReset) _scnReset.onclick=()=>{ if(scnId){scnStep=0;scnApply();} };
+
+/* ========= FAULT LIBRARY (one-click, additive — does not touch rhythm/rate/thresholds) =========
+   Unlike the scenario library above, these do NOT reset first — each just toggles the one
+   named fault on top of whatever the facilitator already has running, so a fault can be
+   injected mid-scenario. No new clinical logic: every apply() only sets fields deviceStep()/
+   updateAnnun() already read (P.*, conn.*), the same fields the manual checkboxes/sliders below
+   already control. */
+const FAULT_LIB=[
+  { id:'capfail', label:'Loss of capture',
+    hint:'Raises the V threshold above the current V output — pacing spikes fire but nothing captures.',
+    apply:()=>{ P.vThr=Math.min(25,Math.max(S.vOut+3,9.0)); },
+    active:()=>S.vOut>0&&S.vOut<P.vThr },
+  { id:'undersense', label:'Failure to sense (undersensing)',
+    hint:'Weakens the sensed R-wave below the V sensitivity setting — intrinsic beats go unseen, risking competitive pacing.',
+    apply:()=>{ P.vSig=0.5; },
+    active:()=>P.vSig<=0.5 },
+  { id:'oversense', label:'Oversensing / crosstalk',
+    hint:'Phantom V signals inhibit pacing even though the patient needs it.',
+    apply:()=>{ P.oversV=true; },
+    active:()=>P.oversV },
+  { id:'disconnect', label:'Lead / channel disconnect',
+    hint:'Disconnects the V cable at the generator — no output, no sensing on that channel.',
+    apply:()=>{ conn.vGen=false; },
+    active:()=>!conn.vGen },
+  { id:'battery', label:'Battery depletion',
+    hint:'Battery fully depleted — device stops delivering output.',
+    apply:()=>{ P.batt='depleted'; },
+    active:()=>P.batt==='depleted' },
+  { id:'competition', label:'Rhythm competition',
+    hint:'Switches to an accelerated idioventricular rhythm (AIVR) that competes with paced beats.',
+    apply:()=>{ P.rhythm='aivr'; P.aRate=0; P.vRate=82; },
+    active:()=>P.rhythm==='aivr' },
+];
+function applyFault(id){
+  const f=FAULT_LIB.find(x=>x.id===id); if(!f) return;
+  f.apply();
+  syncFac();
+  if($('connModal').classList.contains('open')) drawConn();
+  coach('⚠ Fault injected — '+f.label+'. '+f.hint);
+  render();
+}
+function syncFaultLib(){
+  FAULT_LIB.forEach(f=>{ const btn=$('flt-'+f.id); if(btn) btn.classList.toggle('act',!!f.active()); });
+}
+document.querySelectorAll('.faultbtn[data-fault]').forEach(b=>b.onclick=()=>applyFault(b.dataset.fault));
 
 /* ========= QR CODE (inlined helper — ISO/IEC 18004, byte-mode only) =========
    Renders the learner link as a scannable code for the two-device pairing flow.
