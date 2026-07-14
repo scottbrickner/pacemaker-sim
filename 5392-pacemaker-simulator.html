@@ -5,13 +5,30 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Medtronic 5392 — Temporary Pacemaker Simulator</title>
 <style>
+  /* ===== DESIGN TOKENS =====
+     Colors are load-bearing today (device + strip + facilitator UI all reference them).
+     The spacing/radius/type scale below is new in Phase 1 groundwork — not yet wired into
+     any rule, so it introduces no visual change; Phase 2 will consume it for the
+     surrounding-surface polish pass. The 5392 faceplate itself stays hand-tuned pixel values,
+     not tokenized, so its proportions never drift from the real device. */
   :root{
     --bg:#0d1117; --ink:#e6edf3;
     --body1:#30353d; --body2:#181c22; --bezel:#0a0c10;
     --lcd:#cdc7a3; --lcd2:#b6b086; --lcdink:#15160d;
     --grn:#3ddc7e; --blu:#54b6ff; --ylw:#e8c84b; --red:#d9433b; --metal:#9aa3ad;
     --trace:#37e06a; --spikeA:#5db4ff; --spikeV:#ffd24a;
+
+    /* spacing scale (px) */
+    --space-1:4px; --space-2:6px; --space-3:8px; --space-4:12px; --space-5:16px; --space-6:20px;
+    /* corner radii (px) */
+    --radius-sm:6px; --radius-md:9px; --radius-lg:14px; --radius-xl:16px;
+    /* type scale (px) */
+    --font-xs:10px; --font-sm:11px; --font-base:12px; --font-md:13px; --font-lg:15px;
+    /* font weights */
+    --fw-semibold:600; --fw-bold:700; --fw-heavy:800;
   }
+
+  /* ===== BASE / LAYOUT / SESSION HEADER ===== */
   *{box-sizing:border-box}
   html,body{margin:0;background:var(--bg);color:var(--ink);
     font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;-webkit-text-size-adjust:100%}
@@ -496,6 +513,16 @@
 const $=id=>document.getElementById(id);
 function buzz(ms){ try{ if(navigator.vibrate) navigator.vibrate(ms); }catch(e){} }
 
+/* ========= TIMING & THRESHOLD CONSTANTS =========
+   Named here for the values that were previously inline literals with a single call site.
+   The AV-conduction-pattern delays inside scheduleConduction() (normal/AVB1/Wenckebach/Mobitz II)
+   are intentionally left as-is for this pass — they're the highest-risk clinical timing logic
+   in the file, and renaming them isn't worth touching that state machine in a no-behavior-change
+   phase. Every constant below is a pure rename: same value, same call site, nothing recalculated. */
+const SELFTEST_MS=1500, PAUSE_MAX_MS=10000, RAP_HOLD_MS=350, RAP_FLUTTER_TERMINATION_PPM=300;
+const SYNC_PUSH_MS=140, SYNC_HEARTBEAT_MS=600, SYNC_STATUS_MS=800, SYNC_STALE_MS=2200, RELAY_PING_MS=25000;
+const RELAY_BACKOFF_START_MS=1000, RELAY_BACKOFF_MULT=1.6, RELAY_BACKOFF_MAX_MS=10000;
+
 /* ===== dual-screen session ===== */
 const WIN_ID=Math.random().toString(36).slice(2);
 const qp=new URLSearchParams(location.search);
@@ -504,7 +531,7 @@ const SYNC_KEY='sim5392_sync_v1';
 let bc=null; try{ bc=new BroadcastChannel('sim5392'); }catch(e){}
 let syncReady=(ROLE!=='learner'), lastSync='', lastRecvTime=0;
 /* cross-device relay (self-hosted WebSocket) */
-const relay={ url:qp.get('relay')||(function(){try{return localStorage.getItem('sim5392_relay')||'';}catch(e){return'';}})(), code:qp.get('code')||'', ws:null, peers:0, want:false, backoff:1000 };
+const relay={ url:qp.get('relay')||(function(){try{return localStorage.getItem('sim5392_relay')||'';}catch(e){return'';}})(), code:qp.get('code')||'', ws:null, peers:0, want:false, backoff:RELAY_BACKOFF_START_MS };
 
 /* ========= STATE ========= */
 const S={
@@ -517,6 +544,9 @@ const A_SENS=['ASYNC',10,8,6,5,4,3,2,1.5,1.2,1.0,0.8,0.6,0.5,0.4];
 const V_SENS=['ASYNC',20,15,10,8,6,5,4,3,2,1.5,1.2,1.0,0.8];
 function aSensMv(){const v=A_SENS[S.aSensIdx];return v==='ASYNC'?Infinity:v;}
 function vSensMv(){const v=V_SENS[S.vSensIdx];return v==='ASYNC'?Infinity:v;}
+
+/* shared by the knobs (KNOBS.frac/step) and the LCD gauges (renderUpper) so the two can't drift apart */
+const RANGES={ rate:{min:30,max:200}, aOut:{min:0,max:20}, vOut:{min:0,max:25} };
 
 /* ========= PATIENT ========= */
 const P={ rhythm:'chb', aRate:90, vRate:35, aThr:1.0, vThr:1.5, aSig:2.5, vSig:10,
@@ -744,7 +774,7 @@ function gauge(id,val,min,max){
 function fmt1(n){return (Math.round(n*10)/10).toFixed(1);}
 function renderUpper(){
   $('v-rate').textContent=S.rate; $('v-aout').textContent=fmt1(S.aOut); $('v-vout').textContent=fmt1(S.vOut);
-  gauge('g-rate',S.rate,30,200); gauge('g-aout',S.aOut,0,20); gauge('g-vout',S.vOut,0,25);
+  gauge('g-rate',S.rate,RANGES.rate.min,RANGES.rate.max); gauge('g-aout',S.aOut,RANGES.aOut.min,RANGES.aOut.max); gauge('g-vout',S.vOut,RANGES.vOut.min,RANGES.vOut.max);
   $('modeInd').textContent=S.mode; $('lockInd').className='lockind'+(S.locked?' on':'');
   const bf=P.batt==='ok'?100:(P.batt==='low'?22:6);
   $('battFill').style.width=bf+'%'; $('battFill').style.background=P.batt==='ok'?'#15160d':'#9a2b22';
@@ -832,18 +862,18 @@ function modeCoach(m){ const t={
   OOO:'OOO: no pacing therapy. Use to observe the underlying rhythm.'}; return t[m]||''; }
 function powerOn(){ S.power=true;S.locked=false;S.paused=false; applyMode('DDD');
   S.rate=80;S.aOut=10;S.vOut=10;S.aSensIdx=11;S.vSensIdx=10;S.avi=170;S.upper=110;S.pvarp=300;S.aTrack=true;S.screen='params';S.selParam=0;
-  syncOutFlags(); S.selfTestUntil=T+1500; $('upperLcd').className='lcd';
+  syncOutFlags(); S.selfTestUntil=T+SELFTEST_MS; $('upperLcd').className='lcd';
   coach('Self-test running… device will begin pacing in DDD at 80 ppm.');
-  setTimeout(()=>{ if(S.power)coach(modeCoach('DDD')); },1600); }
+  setTimeout(()=>{ if(S.power)coach(modeCoach('DDD')); },SELFTEST_MS+100); }
 function powerOff(){ S.power=false;S.paused=false;avActive=false; $('upperLcd').className='lcd off'; $('lowerLcd').className='lcd off lower';
   waves=[];pendingConduction=[];pendingPVC=0; closeStepper(); coach('Device off. All pacing stopped. Press power to restart.'); }
 function coach(t){ $('coach').innerHTML=t; }
 
 /* ========= KNOBS + STEPPER ========= */
 const KNOBS={
-  'k-rate':{ lbl:'Rate', unit:'ppm', frac:()=>(S.rate-30)/170, get:()=>S.rate, step:d=>{ if(!guard())return; S.rate=Math.max(30,Math.min(200,S.rate+5*d)); } },
-  'k-aout':{ lbl:'A Output', unit:'mA', frac:()=>S.aOut/20, get:()=>fmt1(S.aOut), step:d=>{ if(!guard())return; S.aOut=clampOut(S.aOut+stepOut(S.aOut,d),20); autoModeOnOutput(); } },
-  'k-vout':{ lbl:'V Output', unit:'mA', frac:()=>S.vOut/25, get:()=>fmt1(S.vOut), step:d=>{ if(!guard())return; S.vOut=clampOut(S.vOut+stepOut(S.vOut,d),25); autoModeOnOutput(); } },
+  'k-rate':{ lbl:'Rate', unit:'ppm', frac:()=>(S.rate-RANGES.rate.min)/(RANGES.rate.max-RANGES.rate.min), get:()=>S.rate, step:d=>{ if(!guard())return; S.rate=Math.max(RANGES.rate.min,Math.min(RANGES.rate.max,S.rate+5*d)); } },
+  'k-aout':{ lbl:'A Output', unit:'mA', frac:()=>S.aOut/RANGES.aOut.max, get:()=>fmt1(S.aOut), step:d=>{ if(!guard())return; S.aOut=clampOut(S.aOut+stepOut(S.aOut,d),RANGES.aOut.max); autoModeOnOutput(); } },
+  'k-vout':{ lbl:'V Output', unit:'mA', frac:()=>S.vOut/RANGES.vOut.max, get:()=>fmt1(S.vOut), step:d=>{ if(!guard())return; S.vOut=clampOut(S.vOut+stepOut(S.vOut,d),RANGES.vOut.max); autoModeOnOutput(); } },
   'k-menu':{ lbl:'Menu', unit:'', frac:()=>0.5, get:()=>menuLabel(), step:d=>menuDial(d) }
 };
 function stepOut(v,d){ const s=v<1?0.1:(v<5?0.5:1); return s*d; }
@@ -918,12 +948,12 @@ $('enterBtn').onclick=()=>{ if(!guard())return; buzz(8);
     else if(name==='Rapid Atrial Pacing'){ S.screen='rap'; } render(); return; }
   if(S.screen==='modeSelect'){ applyMode(MODE_LIST[S.selMode]); S.screen='params'; S.selParam=0; render(); } };
 let enterHold=null;
-$('enterBtn').addEventListener('pointerdown',()=>{ if(S.screen==='rap'&&S.power&&!S.locked){ enterHold=setTimeout(()=>{ S.rapDelivering=true; buzz(30); coach('● Delivering Rapid Atrial Pacing at '+S.rapRate+' ppm (AOO). Release Enter to stop.'); render(); },350); } });
+$('enterBtn').addEventListener('pointerdown',()=>{ if(S.screen==='rap'&&S.power&&!S.locked){ enterHold=setTimeout(()=>{ S.rapDelivering=true; buzz(30); coach('● Delivering Rapid Atrial Pacing at '+S.rapRate+' ppm (AOO). Release Enter to stop.'); render(); },RAP_HOLD_MS); } });
 function stopRap(){ if(enterHold){clearTimeout(enterHold);enterHold=null;} if(S.rapDelivering){ S.rapDelivering=false;
-  if(P.rhythm==='aflutter'&&S.rapRate>=300){ P.rhythm='sinus';P.aRate=75;P.vRate=0; syncFac(); coach('RAP burst terminated the flutter — sinus rhythm restored. (Not all flutter converts; monitor closely.)'); }
+  if(P.rhythm==='aflutter'&&S.rapRate>=RAP_FLUTTER_TERMINATION_PPM){ P.rhythm='sinus';P.aRate=75;P.vRate=0; syncFac(); coach('RAP burst terminated the flutter — sinus rhythm restored. (Not all flutter converts; monitor closely.)'); }
   else coach('RAP burst ended; pacing resumed at previous settings.'); render(); } }
 window.addEventListener('pointerup',stopRap);
-$('pauseBtn').addEventListener('pointerdown',()=>{ if(!guard())return; S.paused=true; S.pauseUntil=T+10000; buzz(15); coach('Pacing & sensing suspended (≤10 s) — observe the underlying rhythm. Release to resume.'); });
+$('pauseBtn').addEventListener('pointerdown',()=>{ if(!guard())return; S.paused=true; S.pauseUntil=T+PAUSE_MAX_MS; buzz(15); coach('Pacing & sensing suspended (≤10 s) — observe the underlying rhythm. Release to resume.'); });
 function endPause(){ if(S.paused){ S.paused=false; coach('Pacing resumed.'); } }
 $('pauseBtn').addEventListener('pointerup',endPause); $('pauseBtn').addEventListener('pointercancel',endPause);
 
@@ -1129,11 +1159,17 @@ const SCN={
   lowbatt:()=>{ set({}); P.batt='low'; }
 };
 function set(o){ const r=o.rhythm||P.rhythm; const base=RHY[r]||{}; Object.assign(P,o); if(!('aRate'in o)&&base.aDef!=null)P.aRate=base.aDef; }
-function loadScenario(key,label){
-  if(!SCN[key]) return;
+/* shared by loadScenario() and the CT-surgery stepped scenarios (ctApply()) so both start every
+   scenario from the same clean baseline: leads intact, no oversensing, battery OK, all
+   connections made, and the AV-conduction-pattern counters reset. */
+function resetFaultsAndConnections(){
   P.leadA=true;P.leadV=true;P.oversV=false;P.oversA=false;P.batt='ok';
   conn.aGen=conn.aLead=conn.vGen=conn.vLead=true;
   wenckIdx=0;mobitz2Idx=0;pvcCount=0;pendingPVC=0;pendingConduction=[];
+}
+function loadScenario(key,label){
+  if(!SCN[key]) return;
+  resetFaultsAndConnections();
   SCN[key](); syncFac();
   if($('connModal').classList.contains('open'))drawConn();
   if(key!=='threshtest') coach('Scenario loaded: '+(label||key)+'. Adjust the device to manage it.');
@@ -1159,11 +1195,8 @@ const CTSCN={
   ]},
 };
 let ctId='',ctStep=0;
-function ctResetFaults(){ P.leadA=true;P.leadV=true;P.oversV=false;P.oversA=false;P.batt='ok';
-  conn.aGen=conn.aLead=conn.vGen=conn.vLead=true;
-  wenckIdx=0;mobitz2Idx=0;pvcCount=0;pendingPVC=0;pendingConduction=[]; }
 function ctApply(){ const sc=CTSCN[ctId]; const ind=$('ctStep'); if(!sc){ if(ind)ind.textContent='No CT scenario loaded.'; return; }
-  const st=sc.steps[ctStep]; ctResetFaults(); set(st.set); syncFac();
+  const st=sc.steps[ctStep]; resetFaultsAndConnections(); set(st.set); syncFac();
   if($('connModal')&&$('connModal').classList.contains('open'))drawConn();
   if(ind) ind.innerHTML='<b>'+sc.name+'</b><br>'+st.label;
   coach(st.coach); }
@@ -1196,12 +1229,12 @@ function applyRemote(msg){
   applyNotifyUI(); syncFac(); render(); if($('connModal').classList.contains('open')) drawConn();
 }
 function pushSync(){ if(!syncReady) return; const s=snapState(); if(s===lastSync) return; sendSync(s); }
-setInterval(pushSync,140);
-setInterval(()=>{ if(syncReady) sendSync(snapState()); },600); // heartbeat so a newly-opened window catches up
+setInterval(pushSync,SYNC_PUSH_MS);
+setInterval(()=>{ if(syncReady) sendSync(snapState()); },SYNC_HEARTBEAT_MS); // heartbeat so a newly-opened window catches up
 window.addEventListener('storage',e=>{ if(e.key===SYNC_KEY&&e.newValue){ try{ applyRemote(JSON.parse(e.newValue)); }catch(_){} } });
 if(bc) bc.onmessage=ev=>applyRemote(ev.data);
-setInterval(()=>{ const on=Date.now()-lastRecvTime<2200; const d=$('syncDot'); if(d)d.className='dot'+(on?' on':'');
-  const st=$('syncSt'); if(st&&ROLE==='control') st.textContent=on?'● Linked — your changes appear on the learner display live.':'Standalone — open a learner display to start a synced two-screen session.'; },800);
+setInterval(()=>{ const on=Date.now()-lastRecvTime<SYNC_STALE_MS; const d=$('syncDot'); if(d)d.className='dot'+(on?' on':'');
+  const st=$('syncSt'); if(st&&ROLE==='control') st.textContent=on?'● Linked — your changes appear on the learner display live.':'Standalone — open a learner display to start a synced two-screen session.'; },SYNC_STATUS_MS);
 
 /* ===== cross-device relay (WebSocket) ===== */
 function relayLog(t){ const st=$('remoteSt'); if(st)st.textContent=t; const lc=$('learnerConn'); if(lc)lc.textContent=t; }
@@ -1220,15 +1253,15 @@ function connectRelay(){
   relay.want=true; let ws;
   try{ ws=new WebSocket(relay.url); }catch(e){ relayLog('Invalid relay URL (use wss://…).'); return; }
   relay.ws=ws;
-  ws.onopen=()=>{ relay.backoff=1000; try{ ws.send(JSON.stringify({type:'join',code:relay.code,win:WIN_ID,role:ROLE})); }catch(e){}
+  ws.onopen=()=>{ relay.backoff=RELAY_BACKOFF_START_MS; try{ ws.send(JSON.stringify({type:'join',code:relay.code,win:WIN_ID,role:ROLE})); }catch(e){}
     if(ROLE==='control') sendSync(snapState()); updateRelayUI(); };
   ws.onmessage=ev=>{ let m; try{ m=JSON.parse(ev.data); }catch(e){ return; }
     if(m.type==='state') applyRemote({win:m.win,data:m.data});
     else if(m.type==='peers'){ relay.peers=m.n; updateRelayUI(); } };
-  ws.onclose=()=>{ updateRelayUI(); if(relay.want){ setTimeout(connectRelay,relay.backoff); relay.backoff=Math.min(Math.round(relay.backoff*1.6),10000); } };
+  ws.onclose=()=>{ updateRelayUI(); if(relay.want){ setTimeout(connectRelay,relay.backoff); relay.backoff=Math.min(Math.round(relay.backoff*RELAY_BACKOFF_MULT),RELAY_BACKOFF_MAX_MS); } };
   ws.onerror=()=>{ try{ ws.close(); }catch(e){} };
 }
-setInterval(()=>{ if(relay.ws&&relay.ws.readyState===1){ try{ relay.ws.send(JSON.stringify({type:'ping'})); }catch(e){} } },25000);
+setInterval(()=>{ if(relay.ws&&relay.ws.readyState===1){ try{ relay.ws.send(JSON.stringify({type:'ping'})); }catch(e){} } },RELAY_PING_MS);
 
 function applyRole(){
   if(ROLE==='learner'){
