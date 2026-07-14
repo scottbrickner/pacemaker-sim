@@ -1,0 +1,1262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Medtronic 5392 — Temporary Pacemaker Simulator</title>
+<style>
+  :root{
+    --bg:#0d1117; --ink:#e6edf3;
+    --body1:#30353d; --body2:#181c22; --bezel:#0a0c10;
+    --lcd:#cdc7a3; --lcd2:#b6b086; --lcdink:#15160d;
+    --grn:#3ddc7e; --blu:#54b6ff; --ylw:#e8c84b; --red:#d9433b; --metal:#9aa3ad;
+    --trace:#37e06a; --spikeA:#5db4ff; --spikeV:#ffd24a;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;-webkit-text-size-adjust:100%}
+  .wrap{display:flex;gap:20px;padding:18px;align-items:flex-start;flex-wrap:wrap;justify-content:center;max-width:1500px;margin:0 auto;}
+  h1{font-size:15px;font-weight:600;letter-spacing:.3px;margin:0 0 2px;}
+  .sub{font-size:12px;color:#8b97a6;margin-bottom:12px}
+  .session{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+  .session button{font-size:12px;font-weight:600;padding:7px 12px;border-radius:8px;border:1px solid #2f6db5;background:#16263a;color:#cfe3ff;cursor:pointer}
+  .session button:hover{background:#1b3148}
+  .session .dot{width:9px;height:9px;border-radius:50%;background:#5a6573;flex:0 0 auto}
+  .session .dot.on{background:#3ddc7e;box-shadow:0 0 7px #3ddc7e}
+  .session .st{font-size:11px;color:#8b97a6}
+  .badge{font-size:11px;font-weight:800;letter-spacing:1px;color:#cfe3ff;background:#16263a;border:1px solid #2f6db5;padding:6px 11px;border-radius:7px}
+  .session input{font-size:11px;padding:6px 9px;border-radius:7px;border:1px solid #2a333d;background:#0d1117;color:#e6edf3;width:230px}
+
+  /* ===== DEVICE (tall, slender — true 5392 proportions) ===== */
+  .device{width:300px;background:linear-gradient(158deg,var(--body1),var(--body2) 70%);
+    border-radius:34px;padding:16px 16px 26px;position:relative;flex:0 0 auto;
+    box-shadow:0 22px 60px rgba(0,0,0,.65),inset 0 2px 0 rgba(255,255,255,.06),inset 0 -2px 6px rgba(0,0,0,.6);
+    border:1px solid #000;}
+  .connblock{display:flex;justify-content:center;gap:54px;margin:-30px 0 4px;}
+  .socket{width:30px;height:30px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#d4dbe2,#6b7681 60%,#252b32);
+    border:3px solid #0c0f13;box-shadow:0 2px 5px rgba(0,0,0,.7);position:relative;cursor:pointer;touch-action:manipulation}
+  .socket span{position:absolute;bottom:-15px;left:50%;transform:translateX(-50%);font-size:10px;color:#aeb7c0;font-weight:700}
+  .socket.a{outline:2px solid #2f6db5}
+  .socket.v{outline:2px solid #e2e8ee}
+  .socket.unplugged{opacity:.5;outline-style:dashed;outline-color:#b23b32}
+  .socket .conndot{position:absolute;top:-7px;left:50%;transform:translateX(-50%);width:7px;height:7px;border-radius:50%;background:#3ddc7e;box-shadow:0 0 5px #3ddc7e}
+  .socket.unplugged .conndot{background:#d9433b;box-shadow:0 0 5px #d9433b}
+
+  .topbar{position:relative;display:flex;justify-content:flex-end;align-items:center;margin:10px 4px 10px;min-height:34px;}
+  .doo{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+    background:#3a0f0d;border:1px solid #7a1f1a;color:#ff6a5e;font-size:10px;font-weight:800;
+    padding:6px 10px;border-radius:7px;display:flex;gap:5px;align-items:center;cursor:pointer;user-select:none;touch-action:manipulation}
+  .doo:active{transform:translate(-50%,-46%)}
+  .pwr{width:42px;height:32px;border-radius:9px;background:#0d1117;border:1px solid #313842;
+    display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--grn);touch-action:manipulation}
+  .pwr svg{width:19px;height:19px}
+
+  .face{display:flex;gap:11px}
+  .screens{flex:1;min-width:0}
+  .controls{width:60px;display:flex;flex-direction:column;align-items:center;gap:11px;padding-top:2px}
+
+  .lcd{background:linear-gradient(180deg,var(--lcd),var(--lcd2));border-radius:7px;color:var(--lcdink);
+    border:2px solid #000;box-shadow:inset 0 0 14px rgba(0,0,0,.28);padding:8px 9px;position:relative}
+  .lcd.off{background:#22231b;color:#3a3b30;box-shadow:inset 0 0 24px rgba(0,0,0,.75)}
+  .lcd.off *{visibility:hidden}
+
+  .ledrow{display:flex;justify-content:space-between;font-size:8px;font-weight:800;letter-spacing:.2px;margin-bottom:5px}
+  .ledgrp{display:flex;gap:8px}
+  .led{display:flex;flex-direction:column;align-items:center;gap:2px;width:30px}
+  .dot{width:10px;height:10px;border-radius:50%;background:#83805f;box-shadow:inset 0 0 2px rgba(0,0,0,.5);transition:none}
+  .dot.pace.on{background:#46f08a;box-shadow:0 0 11px 3px #46f08a,0 0 3px 1px #b6ffd0;}
+  .dot.sense.on{background:#5cc0ff;box-shadow:0 0 11px 3px #5cc0ff,0 0 3px 1px #cfeaff;}
+
+  .prow{display:flex;align-items:center;justify-content:space-between;margin:5px 0}
+  .gauge{width:50px;height:32px;flex:0 0 auto}
+  .pval{text-align:right;line-height:1;flex:1}
+  .pval .lbl{font-size:8px;font-weight:800;letter-spacing:.4px}
+  .pval .num{font-family:"DejaVu Sans Mono",Menlo,Consolas,monospace;font-weight:800;font-size:33px;letter-spacing:-1px}
+  .pval .unit{font-size:8.5px;font-weight:800}
+
+  .statusbar{display:flex;align-items:center;gap:7px;border-top:1px solid rgba(0,0,0,.25);margin-top:5px;padding-top:5px;font-size:12px;font-weight:800}
+  .batt{margin-left:auto;display:flex;align-items:center;gap:3px;font-size:9px}
+  .batticon{width:24px;height:12px;border:1.5px solid #15160d;border-radius:2px;position:relative;display:flex;align-items:center;padding:1px}
+  .batticon::after{content:"";position:absolute;right:-3px;top:3px;width:2px;height:6px;background:#15160d}
+  .battfill{height:100%;background:#15160d;border-radius:1px}
+  .lockind{display:none}.lockind.on{display:inline}
+
+  .lower{margin-top:9px;min-height:236px;font-size:11px}
+  .lower .ttl{text-align:center;font-weight:800;margin-bottom:5px}
+  .mitem{display:flex;justify-content:space-between;padding:3px 4px;border-radius:3px;cursor:pointer;touch-action:manipulation}
+  .mitem.sel{background:#15160d;color:var(--lcd)}
+  .bar{height:4px;background:#6c6a4d;border-radius:2px;margin:1px 4px 4px}
+  .barfill{height:100%;background:#15160d;border-radius:2px}
+  .moderadio{display:flex;align-items:center;gap:7px;padding:2.5px 5px;border-radius:3px;cursor:pointer}
+  .moderadio.sel{background:#15160d;color:var(--lcd)}
+  .moderadio .rc{width:9px;height:9px;border:1.5px solid currentColor;border-radius:50%}
+  .moderadio.sel .rc{background:var(--lcd)}
+  .divider{border-top:1px dashed rgba(0,0,0,.35);margin:6px 0}
+  .raphint{text-align:center;margin-top:22px;font-weight:700;line-height:1.6}
+
+  .knob{width:46px;height:46px;border-radius:50%;cursor:pointer;position:relative;touch-action:none;
+    background:radial-gradient(circle at 38% 32%,#525863,#262b32 62%,#0d1014);
+    border:1px solid #000;box-shadow:0 3px 7px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.09);}
+  .knob::before{content:"";position:absolute;inset:7px;border-radius:50%;
+    background:repeating-conic-gradient(#2c313a 0 8deg,#1b1f25 8deg 16deg)}
+  .knob .ind{position:absolute;left:50%;top:5px;width:3px;height:14px;background:var(--metal);
+    border-radius:2px;transform-origin:50% 18px;transform:translateX(-50%)}
+  .key{width:46px;height:27px;border-radius:8px;background:#0d1117;border:1px solid #313842;
+    display:flex;align-items:center;justify-content:center;cursor:pointer;color:#cdd4dc;touch-action:manipulation}
+  .key:active{transform:translateY(1px)}
+  .key.lock{color:var(--grn)}.key.enter{color:var(--grn)}.key.pause{color:var(--ylw)}
+  .key svg{width:18px;height:18px}.key.on{box-shadow:0 0 0 2px var(--grn) inset}
+  .klabel{font-size:8px;color:#8b97a6;margin-top:-7px;text-align:center;width:100%;font-weight:700}
+  .brand{text-align:center;font-size:13px;color:#b3bcc6;margin-top:16px;letter-spacing:.5px;font-weight:700}
+
+  /* knob stepper popover (vertical, opens to the right of the knob) */
+  .stepper{position:fixed;z-index:40;display:none;background:#11161e;border:1px solid #2c333d;border-radius:14px;
+    padding:8px;box-shadow:0 12px 30px rgba(0,0,0,.6);flex-direction:column;align-items:center;gap:6px;width:96px}
+  .stepper.open{display:flex}
+  .stepper .sb{width:78px;height:46px;border-radius:11px;border:1px solid #36404b;background:#1b2531;color:#dbe7f4;
+    font-size:22px;font-weight:800;display:flex;align-items:center;justify-content:center;cursor:pointer;user-select:none;touch-action:manipulation}
+  .stepper .sb:active{background:#2c597a}
+  .stepper .sv{text-align:center;padding:1px 0}
+  .stepper .sv .n{font-size:22px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.1}
+  .stepper .sv .t{font-size:8.5px;color:#8b97a6;text-transform:uppercase;letter-spacing:.5px}
+  .stepper::before{content:"";position:absolute;left:-7px;top:50%;transform:translateY(-50%);
+    border:7px solid transparent;border-right-color:#11161e;filter:drop-shadow(-1px 0 0 #2c333d)}
+
+  /* ===== MODAL (connections) ===== */
+  .modal{position:fixed;inset:0;background:rgba(3,5,9,.72);z-index:50;display:none;align-items:center;justify-content:center;padding:18px}
+  .modal.open{display:flex}
+  .modalbox{background:#0f141b;border:1px solid #28303a;border-radius:16px;max-width:680px;width:100%;max-height:92vh;overflow-y:auto;padding:18px;position:relative;box-shadow:0 24px 70px rgba(0,0,0,.7)}
+  .modalbox h2{margin:0 0 2px;font-size:16px}
+  .modalbox .sub2{font-size:12px;color:#8b97a6;margin-bottom:12px}
+  .modalbox .closex{position:absolute;top:12px;right:16px;cursor:pointer;color:#8b97a6;font-size:20px}
+  .conncanvas{width:100%;background:#070b11;border:1px solid #1c2531;border-radius:12px;display:block}
+  .conntip{font-size:12px;color:#9fb0a6;background:#0c1118;border:1px solid #222a33;border-radius:9px;padding:10px;margin-top:12px;line-height:1.5}
+  .connlegend{display:flex;gap:14px;font-size:11px;color:#9fb0a6;margin-top:8px;flex-wrap:wrap}
+  .connlegend i{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:4px;vertical-align:-1px}
+  .wirepick{display:flex;gap:8px;align-items:center;margin-top:12px;font-size:12px;color:#c7d0da;flex-wrap:wrap}
+  .wirepick button{font-size:12px;padding:7px 12px;border-radius:8px;border:1px solid #2a333d;background:#161c24;color:#dbe3ec;cursor:pointer}
+  .wirepick button.act{border-color:#3b82f6;background:#16263a;color:#cfe3ff}
+
+  /* ===== MONITOR ===== */
+  .monitor{background:#05060a;border:1px solid #1a1f27;border-radius:14px;padding:12px 14px;width:580px;flex:1 1 480px;min-width:340px}
+  .mhead{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}
+  .mhead .lead{color:#37e06a;font-weight:700;font-size:13px}
+  .mhead .hr{color:#37e06a;font-size:13px}.mhead .hr b{font-size:27px}
+  canvas#ecg{display:block;width:100%;background:#04120a;border-radius:8px}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:#9fb0a6;margin-top:8px}
+  .legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+  .annun{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;min-height:8px}
+  .tag{font-size:10.5px;font-weight:800;padding:3px 8px;border-radius:5px;background:#11161d;border:1px solid #232b34;color:#9fb0a6}
+  .tag.warn{background:#2a1410;border-color:#7a2a1e;color:#ff8a72}
+  .tag.ok{background:#0f2417;border-color:#1f5e38;color:#5fe089}
+  .tag.info{background:#0e1d2c;border-color:#22506f;color:#7fc4ff}
+
+  /* ===== FACILITATOR ===== */
+  .factab{display:none}
+  /* facilitator controls docked along the bottom, tabbed so only one section shows and the strip stays visible */
+  .facpanel{position:fixed;left:0;right:0;bottom:0;top:auto;width:auto;max-width:none;height:284px;background:#0f141b;border-top:2px solid #2a3746;
+    z-index:29;transition:height .18s ease;overflow:hidden;padding:0;box-shadow:0 -10px 34px rgba(0,0,0,.55);display:flex;flex-direction:column}
+  .facpanel.collapsed{height:38px}
+  .facdockhead{display:flex;align-items:center;gap:14px;padding:0 14px;height:38px;background:#141b24;border-bottom:1px solid #222a33;flex:0 0 auto;user-select:none}
+  .facdocktitle{font-size:13px;font-weight:600;color:#e6edf3;white-space:nowrap}
+  .factabs{display:flex;gap:4px;flex:1 1 auto;overflow-x:auto}
+  .ftab{font-size:12.5px;padding:6px 12px;border-radius:7px;border:1px solid transparent;background:none;color:#8b97a6;cursor:pointer;white-space:nowrap}
+  .ftab:hover{color:#cbd5e1;background:#1a2230}
+  .ftab.on{color:#e6edf3;background:#1c2836;border-color:#2f6db5}
+  #facToggle{margin-left:auto;font-size:12.5px;color:#7fb4ff;font-weight:600;white-space:nowrap;cursor:pointer;flex:0 0 auto}
+  .facdockbody{display:flex;gap:14px;overflow-x:auto;overflow-y:hidden;padding:12px 14px;flex:1 1 auto;align-items:stretch}
+  .facpanel .fgrp{flex:1 1 300px;max-width:460px;margin:0;overflow-y:auto}
+  .fgrp{border:1px solid #222a33;border-radius:9px;padding:12px;background:#0c1118}
+  .fgrp h3{font-size:12px;font-weight:600;letter-spacing:0;text-transform:none;color:#9fb4c8;margin:0 0 10px}
+  .fgrp .note{font-size:11.5px;color:#8b97a6;margin:0 0 9px;line-height:1.45}
+  /* ===== facilitator DASHBOARD: device = left column top-to-bottom; right = strip (top 1/3) + controls (bottom 2/3) ===== */
+  .dashtop{padding:8px 16px;display:flex;align-items:baseline;gap:12px;border-bottom:1px solid #1a2230}
+  .dashtitle{font-size:15px;font-weight:600;color:#e6edf3}
+  .dashsub{font-size:12px;color:#8b97a6}
+  .sbtn{font-size:12px;font-weight:600;padding:7px 10px;border-radius:8px;border:1px solid #2f6db5;background:#16263a;color:#cfe3ff;cursor:pointer}
+  .sbtn:hover{background:#1b3148}
+  body.dashview{padding-bottom:0 !important;overflow:hidden}
+  body.dashview .wrap{display:grid;grid-template-columns:minmax(240px,24%) 1fr;grid-template-rows:34% 66%;
+    grid-template-areas:"device monitor" "device controls";gap:12px;height:calc(100vh - 44px);max-width:none;margin:0;padding:10px 14px 0;align-items:stretch}
+  body.dashview .device{grid-area:device;zoom:.8;align-self:start;justify-self:center}
+  body.dashview .monitor{grid-area:monitor;display:flex;flex-direction:column;min-height:0;overflow:hidden;width:auto;flex:none}
+  body.dashview .monitor #ecg{width:100%;height:clamp(150px,22vh,260px)}
+  body.dashview .monitor .legend{display:none}
+  body.dashview .monitor .hintbox{margin-top:6px}
+  body.dashview .facpanel{grid-area:controls;position:static;height:auto;max-width:none;margin:0;padding:0;background:transparent;border-top:none;box-shadow:none;display:flex;flex-direction:column;min-height:0}
+  body.dashview .facdockhead{display:none}
+  body.dashview .facdockbody{display:grid;grid-template-columns:repeat(auto-fill,minmax(232px,1fr));gap:10px;overflow-y:auto;overflow-x:hidden;padding:0 2px 8px 0;align-items:stretch;min-height:0}
+  body.dashview .facpanel .fgrp{flex:none;min-width:0;max-width:100%;overflow:hidden}
+  body.learnerview .facpanel{display:none}
+  body.learnerview .dashtop{border-bottom:none;padding:6px 16px}
+  .scn{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+  .scn button{font-size:12px;padding:8px 8px;border-radius:8px;border:1px solid #2a333d;background:#161c24;color:#dbe3ec;cursor:pointer;text-align:left;line-height:1.25;touch-action:manipulation}
+  .scn button:hover{border-color:#3b82f6;background:#18222e}
+  /* stacked fields: label on its own line, control full-width beneath — keeps everything inside the card */
+  .frow{display:flex;flex-wrap:wrap;align-items:center;gap:5px 8px;margin:9px 0;min-width:0}
+  .frow label{font-size:12px;color:#c7d0da;flex:1 1 100%;min-width:0}
+  .frow input[type=range]{flex:1 1 60px;min-width:0;width:auto}
+  .frow .v{font-size:12px;color:#7fb4ff;flex:0 0 auto;min-width:40px;text-align:right;font-variant-numeric:tabular-nums}
+  .frow select{flex:1 1 100%;min-width:0;max-width:100%;background:#161c24;color:#e6edf3;border:1px solid #2a333d;border-radius:6px;padding:6px;font-size:12px}
+  .fgrp input,.fgrp select{box-sizing:border-box}
+  .fgrp .note{overflow-wrap:anywhere}
+  .chk{display:flex;align-items:center;gap:8px;font-size:11.5px;color:#c7d0da;margin:7px 0;cursor:pointer}
+  .chk input{width:16px;height:16px}
+  .closex{position:absolute;top:12px;right:14px;cursor:pointer;color:#8b97a6;font-size:18px}
+  .hintbox{font-size:11px;color:#9fb0a6;background:#0c1118;border:1px solid #222a33;border-radius:8px;padding:9px;margin-top:6px;line-height:1.45}
+  optgroup{color:#8b97a6}
+</style>
+</head>
+<body>
+<div class="dashtop" id="dashTop">
+  <span class="dashtitle">Medtronic Model 5392 — Dual Chamber Temporary Pacemaker</span>
+  <span class="dashsub">Interactive trainer · CTICU education</span>
+</div>
+<div class="wrap">
+    <div class="device" id="device">
+      <div class="connblock">
+        <div class="socket a" id="sock-a" title="Atrial connection — click to inspect"><span class="conndot"></span><span>A</span></div>
+        <div class="socket v" id="sock-v" title="Ventricular connection — click to inspect"><span class="conndot"></span><span>V</span></div>
+      </div>
+      <div class="topbar">
+        <div class="doo" id="dooBtn" title="DOO emergency – high-output asynchronous pacing">⚠ DOO</div>
+        <div class="pwr" id="pwrBtn" title="On/Off">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 3v9"/><path d="M6.6 6.6a8 8 0 1 0 10.8 0"/></svg>
+        </div>
+      </div>
+
+      <div class="face">
+        <div class="screens">
+          <div class="lcd off" id="upperLcd">
+            <div class="ledrow">
+              <div class="ledgrp">
+                <div class="led"><span class="dot pace" id="led-ap"></span>A PACE</div>
+                <div class="led"><span class="dot sense" id="led-as"></span>A SENSE</div>
+              </div>
+              <div class="ledgrp">
+                <div class="led"><span class="dot pace" id="led-vp"></span>V PACE</div>
+                <div class="led"><span class="dot sense" id="led-vs"></span>V SENSE</div>
+              </div>
+            </div>
+            <div class="prow">
+              <canvas class="gauge" id="g-rate" width="100" height="64"></canvas>
+              <div class="pval"><div class="lbl">RATE</div><div class="num" id="v-rate">80</div><div class="unit">ppm</div></div>
+            </div>
+            <div class="prow">
+              <canvas class="gauge" id="g-aout" width="100" height="64"></canvas>
+              <div class="pval"><div class="lbl">A OUTPUT</div><div class="num" id="v-aout">10.0</div><div class="unit">mA</div></div>
+            </div>
+            <div class="prow">
+              <canvas class="gauge" id="g-vout" width="100" height="64"></canvas>
+              <div class="pval"><div class="lbl">V OUTPUT</div><div class="num" id="v-vout">10.0</div><div class="unit">mA</div></div>
+            </div>
+            <div class="statusbar">
+              <span id="modeInd">DDD</span>
+              <span class="lockind" id="lockInd">🔒</span>
+              <span class="batt"><span class="batticon"><span class="battfill" id="battFill" style="width:100%"></span></span></span>
+            </div>
+          </div>
+          <div class="lcd off lower" id="lowerLcd"></div>
+        </div>
+
+        <div class="controls">
+          <div class="knob" id="k-rate" title="Rate"><div class="ind"></div></div>
+          <div class="klabel">RATE</div>
+          <div class="knob" id="k-aout" title="A Output"><div class="ind"></div></div>
+          <div class="klabel">A&nbsp;OUT</div>
+          <div class="knob" id="k-vout" title="V Output"><div class="ind"></div></div>
+          <div class="klabel">V&nbsp;OUT</div>
+          <div class="key lock" id="lockBtn" title="Lock / Unlock">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></div>
+          <div class="key enter" id="enterBtn" title="Enter / Select (hold for RAP)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6v6a2 2 0 0 1-2 2H6"/><path d="M9 11l-4 3 4 3"/></svg></div>
+          <div class="key" id="upBtn" title="Up"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 7l6 8H6z"/></svg></div>
+          <div class="key" id="downBtn" title="Down"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 17l-6-8h12z"/></svg></div>
+          <div class="knob" id="k-menu" title="Menu / parameter dial"><div class="ind"></div></div>
+          <div class="klabel">MENU</div>
+          <div class="key pause" id="pauseBtn" title="Pause (hold to suspend pacing ≤10s)">
+            <svg viewBox="0 0 24 24" fill="currentColor"><rect x="7" y="6" width="3.5" height="12"/><rect x="13.5" y="6" width="3.5" height="12"/></svg></div>
+        </div>
+      </div>
+      <div class="brand">✦ Medtronic</div>
+    </div>
+
+  <div class="monitor">
+    <div class="mhead">
+      <span class="lead">ECG · II</span>
+      <span class="hr">HR <b id="hrNum">--</b> /min</span>
+    </div>
+    <canvas id="ecg" width="1100" height="270"></canvas>
+    <div class="annun" id="annun"></div>
+    <div class="legend">
+      <span><i style="background:var(--trace)"></i>ECG</span>
+      <span><i style="background:var(--spikeA)"></i>Atrial pace spike</span>
+      <span><i style="background:var(--spikeV)"></i>Ventricular pace spike</span>
+    </div>
+    <div class="hintbox" id="coach">Press the green power button to begin. Note: the bridging cables are <b>not plugged into the generator</b> yet — click the A and V sockets on top of the device to connect them before pacing will work.</div>
+  </div>
+
+<div class="stepper" id="stepper">
+  <div class="sb" id="stepUp">▲</div>
+  <div class="sv"><div class="n" id="stepVal">0</div><div class="t" id="stepLbl">rate</div></div>
+  <div class="sb" id="stepDown">▼</div>
+</div>
+
+<div class="modal" id="connModal">
+  <div class="modalbox">
+    <span class="closex" id="connClose">✕</span>
+    <h2>Lead &amp; Cable Connections</h2>
+    <div class="sub2">Trace the circuit: generator → <b>5492AL/5492VL patient cable</b> → <b>StreamLine epicardial heart wires</b> → myocardium. Tap any connection point (green = made, red = broken) to connect or disconnect. A broken link in a channel = no output and no sensing on that channel.</div>
+    <canvas class="conncanvas" id="connCanvas" width="660" height="430"></canvas>
+    <div class="connlegend">
+      <span><i style="background:#3ddc7e"></i>Connected</span>
+      <span><i style="background:#d9433b"></i>Disconnected</span>
+      <span><i style="background:#5db4ff"></i>Atrial (A)</span>
+      <span><i style="background:#e2e8ee"></i>Ventricular (V)</span>
+    </div>
+    <div class="wirepick">
+      <span>Patient leads (facilitator):</span>
+      <button id="wEpi" data-w="epicardial">Epicardial wires</button>
+      <button id="wTv" data-w="transvenous">Transvenous catheter</button>
+    </div>
+    <div class="conntip" id="connTip">Tap a connection point to toggle it.</div>
+  </div>
+</div>
+
+<div class="factab" id="facTab">FACILITATOR</div>
+<div class="facpanel" id="facPanel">
+  <div class="facdockhead" id="facHead">
+    <span class="facdocktitle">Facilitator controls</span>
+    <div class="factabs" id="facTabs">
+      <button class="ftab on" data-tab="scenarios">Scenarios</button>
+      <button class="ftab" data-tab="rhythm">Rhythm</button>
+      <button class="ftab" data-tab="thresholds">Thresholds &amp; sensing</button>
+      <button class="ftab" data-tab="faults">Faults &amp; leads</button>
+      <button class="ftab" data-tab="notify">Notifications</button>
+    </div>
+    <span id="facToggle">▾ Hide</span>
+  </div>
+  <div class="facdockbody" id="facBody">
+
+  <div class="fgrp" data-tab="session">
+    <h3>Session &amp; sharing</h3>
+    <div class="frow" style="justify-content:flex-start;gap:8px"><button class="sbtn" id="launcher">⧉ Open learner display</button><span class="dot" id="syncDot"></span></div>
+    <div class="note" id="syncSt">Same computer: open a learner display for a synced two-screen session.</div>
+    <div class="frow" style="justify-content:flex-start;gap:8px;margin-top:6px"><button class="sbtn" id="remoteBtn">🌐 Start remote session</button><button class="sbtn" id="copyLink" style="display:none">Copy learner link</button><span class="dot" id="remoteDot"></span></div>
+    <input id="relayUrl" placeholder="wss://your-relay.onrender.com" style="width:100%;margin-top:6px" />
+    <div class="note" id="remoteSt">Different devices: paste your relay URL, then Start — share the learner link.</div>
+  </div>
+
+  <div class="fgrp" data-tab="scenarios">
+    <h3>Quick scenarios</h3>
+    <select id="quickScn" style="width:100%">
+      <option value="">— load a scenario —</option>
+      <optgroup label="Rhythms">
+        <option value="chb">3° AV block + slow escape (default)</option>
+        <option value="asystole">Asystole — no underlying rhythm</option>
+        <option value="sbrady">Severe sinus bradycardia</option>
+        <option value="sinus">Normal sinus (intact conduction)</option>
+        <option value="mobitz1">2° AVB — Mobitz I (Wenckebach)</option>
+        <option value="mobitz2">2° AVB — Mobitz II</option>
+        <option value="avb1">1° AV block</option>
+        <option value="junctional">Junctional escape</option>
+        <option value="idiovent">Idioventricular escape</option>
+        <option value="aivr">Accelerated idioventricular (AIVR)</option>
+        <option value="vt">Ventricular tachycardia</option>
+        <option value="pvc">Sinus with frequent PVCs</option>
+        <option value="flutter">Atrial flutter (for RAP)</option>
+        <option value="afib">Atrial fibrillation</option>
+      </optgroup>
+      <optgroup label="Faults &amp; troubleshooting">
+        <option value="capturefail">Failure to capture (V)</option>
+        <option value="undersense">Failure to sense (undersensing V)</option>
+        <option value="oversense">Oversensing → inhibition</option>
+        <option value="leadfx">V lead fracture (no output)</option>
+        <option value="discV">Disconnected V cable (troubleshoot)</option>
+        <option value="lowbatt">Low battery</option>
+      </optgroup>
+      <optgroup label="Setup">
+        <option value="threshtest">Threshold-test setup (VVI)</option>
+      </optgroup>
+    </select>
+    <div class="note" style="margin-top:8px">Loads rhythm, thresholds, and faults in one step. Then adjust the device to manage it.</div>
+  </div>
+
+  <div class="fgrp" id="ctScnGrp" data-tab="scenarios">
+    <h3>CT Surgery scenarios (stepped)</h3>
+    <div class="note">Preconfigured CTICU cases. Pick one, then advance through patient states with Next. Pairs with the HemoSphere &amp; IntelliVue sims.</div>
+    <div class="frow"><label>Scenario</label>
+      <select id="ctScn">
+        <option value="">— select —</option>
+        <option value="tavr_chb">SCE 4 · Post-TAVR complete heart block</option>
+        <option value="maze_pace">SCE 3 · Maze — pacing optimization</option>
+        <option value="pod0_paced">SCE 2 · POD0 AV-paced baseline</option>
+      </select>
+    </div>
+    <div class="scn" style="display:flex;gap:6px;margin-top:6px;">
+      <button id="ctPrev" style="flex:1">‹ Prev</button>
+      <button id="ctNext" style="flex:1">Next ›</button>
+      <button id="ctReset" style="flex:1">Reset</button>
+    </div>
+    <div class="hintbox" id="ctStep">No CT scenario loaded.</div>
+  </div>
+
+  <div class="fgrp" data-tab="rhythm">
+    <h3>Underlying rhythm</h3>
+    <div class="frow"><label>Pattern</label>
+      <select id="f-rhythm">
+        <optgroup label="Sinus / atrial">
+          <option value="sinus">Normal sinus</option>
+          <option value="sbrady">Sinus bradycardia</option>
+          <option value="stach">Sinus tachycardia</option>
+          <option value="aflutter">Atrial flutter</option>
+          <option value="afib">Atrial fibrillation</option>
+        </optgroup>
+        <optgroup label="AV block">
+          <option value="avb1">1° AV block</option>
+          <option value="mobitz1">2° — Mobitz I (Wenckebach)</option>
+          <option value="mobitz2">2° — Mobitz II</option>
+          <option value="chb">3° AV block (complete)</option>
+        </optgroup>
+        <optgroup label="Junctional / ventricular">
+          <option value="junctional">Junctional escape</option>
+          <option value="accel_junctional">Accelerated junctional</option>
+          <option value="idioventricular">Idioventricular escape</option>
+          <option value="aivr">Accelerated idioventricular (AIVR)</option>
+          <option value="vt">Ventricular tachycardia</option>
+          <option value="pvc">Sinus with frequent PVCs</option>
+        </optgroup>
+        <optgroup label="No rhythm">
+          <option value="asystole">Asystole</option>
+        </optgroup>
+      </select>
+    </div>
+    <div class="frow"><label>Atrial rate (P)</label><input type="range" id="f-arate" min="0" max="180" step="5" value="90"><span class="v" id="f-arate-v">90</span></div>
+    <div class="frow"><label>Ventricular / escape rate</label><input type="range" id="f-vrate" min="0" max="220" step="5" value="35"><span class="v" id="f-vrate-v">35</span></div>
+    <div class="hintbox" id="rhythmHint"></div>
+  </div>
+
+  <div class="fgrp" data-tab="thresholds">
+    <h3>Capture thresholds (mA)</h3>
+    <div class="frow"><label>Atrial threshold</label><input type="range" id="f-athr" min="0.1" max="20" step="0.1" value="1.0"><span class="v" id="f-athr-v">1.0</span></div>
+    <div class="frow"><label>Ventricular threshold</label><input type="range" id="f-vthr" min="0.1" max="25" step="0.1" value="1.5"><span class="v" id="f-vthr-v">1.5</span></div>
+    <div class="hintbox">Capture occurs only when the chamber's <b>Output ≥ threshold</b> (and lead intact). Drives stimulation-threshold testing.</div>
+  </div>
+
+  <div class="fgrp" data-tab="thresholds">
+    <h3>Sensed signal amplitude (mV)</h3>
+    <div class="frow"><label>P-wave (atrial)</label><input type="range" id="f-asig" min="0.2" max="10" step="0.1" value="2.5"><span class="v" id="f-asig-v">2.5</span></div>
+    <div class="frow"><label>R-wave (ventricular)</label><input type="range" id="f-vsig" min="0.5" max="20" step="0.5" value="10"><span class="v" id="f-vsig-v">10</span></div>
+    <div class="hintbox">Device senses only when <b>Sensitivity setting (mV) ≤ signal amplitude</b>. Lower the R-wave to make ventricular sensing-threshold testing meaningful.</div>
+  </div>
+
+  <div class="fgrp" data-tab="faults">
+    <h3>Fault injection</h3>
+    <label class="chk"><input type="checkbox" id="f-leadA"> Atrial lead fracture (no output / no sensing)</label>
+    <label class="chk"><input type="checkbox" id="f-leadV"> Ventricular lead fracture (no output / no sensing)</label>
+    <label class="chk"><input type="checkbox" id="f-oversV"> Ventricular oversensing (phantom signals)</label>
+    <label class="chk"><input type="checkbox" id="f-oversA"> Atrial oversensing (phantom signals)</label>
+    <div class="frow"><label>Battery</label>
+      <select id="f-batt"><option value="ok">OK</option><option value="low">Low (warning)</option><option value="depleted">Depleted (no output)</option></select>
+    </div>
+  </div>
+
+  <div class="fgrp" data-tab="faults">
+    <h3>Leads &amp; connections</h3>
+    <div class="frow"><label>Lead type</label>
+      <select id="f-wire"><option value="epicardial">Epicardial wires (post-op)</option><option value="transvenous">Transvenous catheter</option></select>
+    </div>
+    <label class="chk"><input type="checkbox" id="f-discA"> Disconnect atrial cable</label>
+    <label class="chk"><input type="checkbox" id="f-discV"> Disconnect ventricular cable</label>
+    <div class="hintbox">Disconnect a channel to create a "why isn't it pacing?" troubleshooting case. The learner clicks the A/V socket on the device to open the connections view and find the break. Epicardial wires are the typical post-cardiotomy setup; transvenous is the floated-catheter setup.</div>
+  </div>
+
+  <div class="fgrp" data-tab="notify">
+    <h3>Learner notifications</h3>
+    <div class="frow"><label>Mode</label>
+      <select id="f-notify"><option value="training">Training — show all flags</option><option value="validation">Validation — hide all flags</option><option value="custom">Custom</option></select>
+    </div>
+    <div id="notifyCustom" style="display:none">
+      <label class="chk"><input type="checkbox" id="n-capture" checked> Capture flags (loss of capture)</label>
+      <label class="chk"><input type="checkbox" id="n-sensing" checked> Sensing flags (over/undersensing)</label>
+      <label class="chk"><input type="checkbox" id="n-lead" checked> Lead / output flags</label>
+      <label class="chk"><input type="checkbox" id="n-battery" checked> Battery flags</label>
+      <label class="chk"><input type="checkbox" id="n-rhythm" checked> Rhythm flags (brady/asystole)</label>
+      <label class="chk"><input type="checkbox" id="n-ok" checked> "Pacing OK" reassurance flag</label>
+    </div>
+    <div class="hintbox">Validation mode strips all interpretive flags so you can assess whether the learner recognizes the problem unaided. The HR readout always stays visible.</div>
+  </div>
+  </div><!-- /facdockbody -->
+</div><!-- /facpanel -->
+</div><!-- /wrap -->
+
+<script>
+(function(){
+"use strict";
+const $=id=>document.getElementById(id);
+function buzz(ms){ try{ if(navigator.vibrate) navigator.vibrate(ms); }catch(e){} }
+
+/* ===== dual-screen session ===== */
+const WIN_ID=Math.random().toString(36).slice(2);
+const qp=new URLSearchParams(location.search);
+const ROLE=(qp.get('role')==='learner')?'learner':'control';
+const SYNC_KEY='sim5392_sync_v1';
+let bc=null; try{ bc=new BroadcastChannel('sim5392'); }catch(e){}
+let syncReady=(ROLE!=='learner'), lastSync='', lastRecvTime=0;
+/* cross-device relay (self-hosted WebSocket) */
+const relay={ url:qp.get('relay')||(function(){try{return localStorage.getItem('sim5392_relay')||'';}catch(e){return'';}})(), code:qp.get('code')||'', ws:null, peers:0, want:false, backoff:1000 };
+
+/* ========= STATE ========= */
+const S={
+  power:false, locked:false, paused:false, pauseUntil:0, selfTestUntil:0,
+  mode:'DDD', rate:80, aOut:10.0, vOut:10.0, aSensIdx:11, vSensIdx:10,
+  avi:170, upper:110, pvarp:300, aTrack:true, rapRate:250, rapDelivering:false,
+  screen:'params', selMode:0, selParam:0
+};
+const A_SENS=['ASYNC',10,8,6,5,4,3,2,1.5,1.2,1.0,0.8,0.6,0.5,0.4];
+const V_SENS=['ASYNC',20,15,10,8,6,5,4,3,2,1.5,1.2,1.0,0.8];
+function aSensMv(){const v=A_SENS[S.aSensIdx];return v==='ASYNC'?Infinity:v;}
+function vSensMv(){const v=V_SENS[S.vSensIdx];return v==='ASYNC'?Infinity:v;}
+
+/* ========= PATIENT ========= */
+const P={ rhythm:'chb', aRate:90, vRate:35, aThr:1.0, vThr:1.5, aSig:2.5, vSig:10,
+  leadA:true, leadV:true, oversV:false, oversA:false, batt:'ok' };
+
+/* ========= CONNECTIONS ========= */
+/* each channel must be connected at the generator (cable plug) AND at the lead (wires into cable) */
+const conn={ aGen:false, aLead:true, vGen:false, vLead:true, wire:'epicardial' };
+function aConnected(){ return conn.aGen && conn.aLead; }
+function vConnected(){ return conn.vGen && conn.vLead; }
+function aLeadOk(){ return P.leadA && aConnected(); }
+function vLeadOk(){ return P.leadV && vConnected(); }
+
+/* notifications */
+const N={ mode:'training', capture:true, sensing:true, lead:true, battery:true, rhythm:true, ok:true };
+
+/* ========= RHYTHM METADATA ========= */
+/* conduct: how atrial impulses reach ventricle.
+   escape: independent ventricular focus {wide}. width 'auto' => wide if rate<40 */
+const RHY={
+  sinus:{aDef:75,vDef:0,conduct:'normal',hint:'Normal sinus 60–100, 1:1 conduction, narrow QRS.'},
+  sbrady:{aDef:42,vDef:0,conduct:'normal',hint:'Sinus bradycardia <60; conducts 1:1.'},
+  stach:{aDef:130,vDef:0,conduct:'normal',hint:'Sinus tachycardia 100–160; conducts 1:1.'},
+  avb1:{aDef:75,vDef:0,conduct:'avb1',hint:'1° AVB: PR >200 ms (here ~280), every P conducts.'},
+  mobitz1:{aDef:75,vDef:0,conduct:'mobitz1',hint:'Mobitz I (Wenckebach): PR lengthens each beat until a QRS drops (4:3), then resets.'},
+  mobitz2:{aDef:75,vDef:0,conduct:'mobitz2',hint:'Mobitz II: fixed PR with sudden dropped QRS (3:2); often wide QRS — high risk of progression.'},
+  chb:{aDef:90,vDef:35,conduct:'none',escape:{wide:'auto'},hint:'3° AVB: complete AV dissociation — atria & ventricles independent. Escape <40 is wide (ventricular); 40–60 narrow (junctional).'},
+  junctional:{aDef:0,vDef:48,conduct:'none',escape:{wide:false},hint:'Junctional escape 40–60, narrow QRS, no P (or retrograde).'},
+  accel_junctional:{aDef:0,vDef:80,conduct:'none',escape:{wide:false},hint:'Accelerated junctional 60–100, narrow QRS.'},
+  idioventricular:{aDef:0,vDef:35,conduct:'none',escape:{wide:true},hint:'Idioventricular escape ≤40, wide QRS.'},
+  aivr:{aDef:0,vDef:80,conduct:'none',escape:{wide:true},hint:'AIVR 40–120, wide QRS — reperfusion marker.'},
+  vt:{aDef:0,vDef:170,conduct:'none',escape:{wide:true},hint:'Monomorphic VT ≥120 (here ~170), wide QRS. Keep defibrillator ready.'},
+  pvc:{aDef:75,vDef:0,conduct:'normal',pvc:true,hint:'Sinus with frequent PVCs (premature wide beats + compensatory pause).'},
+  aflutter:{aDef:300,vDef:150,conduct:'flutter',hint:'Atrial flutter ~300 (sawtooth) with 2:1 conduction (~150). For RAP teaching.'},
+  afib:{aDef:0,vDef:0,conduct:'afib',hint:'Atrial fibrillation: no organized P, irregularly irregular ventricular response.'},
+  asystole:{aDef:0,vDef:0,conduct:'none',hint:'Asystole: no intrinsic activity — pacemaker-dependent.'}
+};
+
+const MODES={
+  DDD:{pA:1,pV:1,sA:1,sV:1,track:1}, DDI:{pA:1,pV:1,sA:1,sV:1,track:0},
+  DOO:{pA:1,pV:1,sA:0,sV:0,track:0}, AAI:{pA:1,pV:0,sA:1,sV:0,track:0},
+  AOO:{pA:1,pV:0,sA:0,sV:0,track:0}, VVI:{pA:0,pV:1,sA:0,sV:1,track:0},
+  VOO:{pA:0,pV:1,sA:0,sV:0,track:0}, OOO:{pA:0,pV:0,sA:0,sV:0,track:0}
+};
+const MODE_LIST=['DDD','DDI','DOO','AAI','AOO','VVI','VOO','OOO'];
+
+/* ========= TIMEKEEPING ========= */
+let T=0; const DT=4;
+let lastA=-9999,lastV=-9999, tLastAevt=-9999,tLastVevt=-9999;
+let avActive=false, avStartT=0;
+let pendingConduction=[];           // {t,wide}
+let pendingPVC=0, pvcCount=0, wenckIdx=0, mobitz2Idx=0;
+let nextAFib=0, lastOverV=0, lastOverA=0;
+const A_REF=200, V_REF=260;
+
+const led={ap:-9999,as:-9999,vp:-9999,vs:-9999};
+function flash(k){led[k]=T;}
+
+let waves=[];
+const WIN_MS=6000, NSAMP=WIN_MS/DT;
+const ys=new Float32Array(NSAMP); const spikes=new Int8Array(NSAMP);
+let head=0, spikeNow=0;
+let beatTimes=[];
+
+/* ========= MORPHOLOGY ========= */
+function shape(type,t){
+  switch(type){
+    case 'P': if(t<0||t>100)return 0; return 0.17*Math.sin(Math.PI*t/100);
+    case 'Pp': if(t<0||t>100)return 0; return 0.15*Math.sin(Math.PI*t/100);
+    case 'Fl': return 0; // flutter handled in baseline
+    case 'QRSn': if(t<0||t>74)return 0;
+      if(t<10)return -0.08*(t/10);
+      if(t<28)return -0.08+1.23*((t-10)/18);
+      if(t<46)return 1.15-1.45*((t-28)/18);
+      if(t<74)return -0.30+0.30*((t-46)/28); return 0;
+    case 'QRSw': if(t<0||t>140)return 0; { let v=0.92*Math.sin(Math.PI*t/132); if(t<26)v-=0.55*(1-t/26); return v; }
+    case 'Tn': if(t<0||t>170)return 0; return 0.24*Math.sin(Math.PI*t/170);
+    case 'Tw': if(t<0||t>185)return 0; return -0.27*Math.sin(Math.PI*t/185);
+  } return 0;
+}
+function waveDur(type){ return type==='QRSw'?142:type==='QRSn'?76:(type==='Tn'?172:type==='Tw'?187:102); }
+function addWave(type,t0){ waves.push({type,t0}); }
+
+/* ========= DEPOLARIZATIONS ========= */
+let depolsThisTick=[];
+function atrialDepol(src){
+  if(T-lastA<A_REF) return;
+  lastA=T; addWave(src==='paced'?'Pp':'P',T);
+  depolsThisTick.push({ch:'A',amp:P.aSig});
+  scheduleConduction();
+}
+function scheduleConduction(){
+  const c=RHY[P.rhythm]?RHY[P.rhythm].conduct:'none';
+  if(c==='normal'){ pendingConduction.push({t:T+160,wide:false}); }
+  else if(c==='avb1'){ pendingConduction.push({t:T+280,wide:false}); }
+  else if(c==='mobitz1'){ // 4:3 Wenckebach
+      const pr=160+wenckIdx*55; const drop=(wenckIdx===3);
+      if(!drop) pendingConduction.push({t:T+pr,wide:false});
+      wenckIdx=(wenckIdx+1)%4;
+  }
+  else if(c==='mobitz2'){ // 3:2
+      const drop=(mobitz2Idx===2);
+      if(!drop) pendingConduction.push({t:T+160,wide:true});
+      mobitz2Idx=(mobitz2Idx+1)%3;
+  }
+  /* none / flutter / afib: no 1:1 conduction here */
+}
+function ventDepol(src,wide){
+  if(T-lastV<V_REF) return;
+  lastV=T;
+  addWave(wide?'QRSw':'QRSn',T);
+  addWave(wide?'Tw':'Tn',T+(wide?150:300));
+  depolsThisTick.push({ch:'V',amp:P.vSig});
+  beatTimes.push(T);
+  if(src==='conducted'){ pvcCount++; if(RHY[P.rhythm]&&RHY[P.rhythm].pvc && pvcCount>=5){ pvcCount=0; pendingPVC=T+Math.max(360,60000/Math.max(40,P.aRate)*0.55); } }
+}
+
+/* ========= INTRINSIC GENERATORS ========= */
+function genIntrinsic(){
+  const r=P.rhythm, meta=RHY[r]||{};
+  const organizedA=['sinus','sbrady','stach','avb1','mobitz1','mobitz2','chb','pvc'].includes(r)&&P.aRate>0;
+  if(organizedA){ const ai=60000/P.aRate; if(T-lastA>=ai*(0.99+Math.random()*0.02)) atrialDepol('intrinsic'); }
+
+  if(r==='aflutter'){ const vi=60000/Math.max(40,P.vRate); if(T-lastV>=vi*(0.97+Math.random()*0.06)) ventDepol('intrinsic',false); }
+  if(r==='afib'){ if(T>=nextAFib){ ventDepol('intrinsic',false); nextAFib=T+(440+Math.random()*640); } }
+
+  // conducted beats
+  for(let i=pendingConduction.length-1;i>=0;i--){ if(T>=pendingConduction[i].t){ ventDepol('conducted',pendingConduction[i].wide); pendingConduction.splice(i,1); } }
+  // PVC
+  if(pendingPVC && T>=pendingPVC){ pendingPVC=0; ventDepol('pvc',true); }
+  // independent escape focus
+  if(meta.escape && P.vRate>0){
+    const vi=60000/P.vRate;
+    if(T-lastV>=vi){ let wide=meta.escape.wide; if(wide==='auto') wide=(P.vRate<40); ventDepol('escape',!!wide); }
+  }
+}
+
+/* ========= DEVICE ========= */
+function deliverPace(ch){
+  const outOk=P.batt!=='depleted';
+  if(ch==='A'){
+    tLastAevt=T; if(MODES[S.mode].pV){ avActive=true; avStartT=T; }
+    if(outOk&&aLeadOk()){ spikeNow=1; flash('ap'); if(S.aOut>=P.aThr) atrialDepol('paced'); }
+  } else {
+    tLastVevt=T; avActive=false;
+    if(outOk&&vLeadOk()){ spikeNow=2; flash('vp'); if(S.vOut>=P.vThr) ventDepol('paced',true); }
+  }
+}
+function deviceStep(){
+  if(!S.power) return;
+  if(T<S.selfTestUntil) return;
+  if(S.paused){ if(T>=S.pauseUntil) S.paused=false; else return; }
+  const f=MODES[S.mode];
+  const LRI=60000/S.rate, VA=Math.max(120,LRI-S.avi), URI=60000/S.upper;
+
+  if(S.rapDelivering){
+    const ri=60000/S.rapRate;
+    if(T-tLastAevt>=ri){ tLastAevt=T; if(P.batt!=='depleted'&&aLeadOk()){ spikeNow=1; flash('ap'); if(S.aOut>=P.aThr) atrialDepol('paced'); } }
+    return;
+  }
+  for(const d of depolsThisTick){
+    if(d.ch==='A'&&f.sA&&aLeadOk()&&d.amp>=aSensMv()){ flash('as'); tLastAevt=T; if(f.track&&(T-tLastVevt)>S.pvarp){ avActive=true; avStartT=T; } }
+    if(d.ch==='V'&&f.sV&&vLeadOk()&&d.amp>=vSensMv()){ flash('vs'); tLastVevt=T; avActive=false; }
+  }
+  if(f.sV&&P.oversV&&vLeadOk()&&T-lastOverV>=340){ lastOverV=T; flash('vs'); tLastVevt=T; avActive=false; }
+  if(f.sA&&P.oversA&&aLeadOk()&&T-lastOverA>=300){ lastOverA=T; flash('as'); tLastAevt=T; if(f.track){avActive=true;avStartT=T;} }
+
+  if(f.pA&&S.aOut>0){ let due=false;
+    if(f.pV){ if(!avActive&&T>=tLastVevt+VA&&T>=tLastAevt+VA) due=true; }
+    else { if(T>=tLastAevt+LRI) due=true; }
+    if(due) deliverPace('A'); }
+  if(f.pV&&S.vOut>0){ let due=false;
+    if(f.pA){ if((avActive&&T>=avStartT+S.avi&&T>=tLastVevt+URI)||(T>=tLastVevt+LRI)) due=true; }
+    else { if(T>=tLastVevt+LRI) due=true; }
+    if(due) deliverPace('V'); }
+}
+
+/* ========= STEP ========= */
+function step(){
+  T+=DT; spikeNow=0; depolsThisTick.length=0;
+  genIntrinsic(); deviceStep();
+  let v=baseline(T);
+  for(let i=waves.length-1;i>=0;i--){ const w=waves[i]; const dt=T-w.t0; v+=shape(w.type,dt); if(dt>waveDur(w.type)) waves.splice(i,1); }
+  ys[head]=v; spikes[head]=spikeNow; head=(head+1)%NSAMP;
+  while(beatTimes.length&&beatTimes[0]<T-6000) beatTimes.shift();
+}
+function baseline(t){
+  let b=0.012*Math.sin(t*0.0013);
+  if(P.rhythm==='aflutter'){ const f=300/60; const ph=(t/1000*f)%1; b+=-0.12*(2*ph-1); }
+  if(P.rhythm==='afib'){ b+=(Math.random()-0.5)*0.07; }
+  return b;
+}
+
+/* ========= ECG RENDER ========= */
+const ecg=$('ecg'), ectx=ecg.getContext('2d');
+function drawEcg(){
+  const W=ecg.width,H=ecg.height,mid=H*0.55,pxmv=58;
+  ectx.fillStyle='#04120a'; ectx.fillRect(0,0,W,H);
+  ectx.strokeStyle='#0d3a1c'; ectx.lineWidth=1;
+  for(let x=0;x<W;x+=20){ectx.beginPath();ectx.moveTo(x,0);ectx.lineTo(x,H);ectx.stroke();}
+  for(let y=0;y<H;y+=20){ectx.beginPath();ectx.moveTo(0,y);ectx.lineTo(W,y);ectx.stroke();}
+  ectx.strokeStyle='#155a2a';
+  for(let x=0;x<W;x+=100){ectx.beginPath();ectx.moveTo(x,0);ectx.lineTo(x,H);ectx.stroke();}
+  for(let y=0;y<H;y+=100){ectx.beginPath();ectx.moveTo(0,y);ectx.lineTo(W,y);ectx.stroke();}
+  const xs=W/NSAMP;
+  ectx.lineWidth=1.8; ectx.strokeStyle='#37e06a'; ectx.beginPath();
+  for(let i=0;i<NSAMP;i++){ const idx=(head+i)%NSAMP; const x=i*xs; let y=mid-ys[idx]*pxmv; if(y<6)y=6; if(y>H-6)y=H-6; if(i===0)ectx.moveTo(x,y);else ectx.lineTo(x,y); }
+  ectx.stroke();
+  for(let i=0;i<NSAMP;i++){ const idx=(head+i)%NSAMP; const sp=spikes[idx];
+    if(sp){ const x=i*xs; ectx.strokeStyle=sp===1?'#5db4ff':'#ffd24a'; ectx.lineWidth=1.7;
+      ectx.beginPath(); ectx.moveTo(x,mid-pxmv*1.55); ectx.lineTo(x,mid+pxmv*0.25); ectx.stroke(); } }
+}
+
+/* ========= GAUGES / UPPER ========= */
+function gauge(id,val,min,max){
+  const c=$(id),x=c.getContext('2d'),W=c.width,H=c.height,cx=W/2,cy=H*0.92,r=W*0.40;
+  x.clearRect(0,0,W,H); x.lineWidth=7; x.lineCap='round';
+  x.strokeStyle='#86815f'; x.beginPath(); x.arc(cx,cy,r,Math.PI,2*Math.PI); x.stroke();
+  x.strokeStyle='#2c7d3f'; x.beginPath(); x.arc(cx,cy,r,Math.PI,Math.PI*1.15); x.stroke();
+  x.strokeStyle='#b23b32'; x.beginPath(); x.arc(cx,cy,r,Math.PI*1.85,2*Math.PI); x.stroke();
+  const fr=Math.max(0,Math.min(1,(val-min)/(max-min))), ang=Math.PI+fr*Math.PI;
+  x.strokeStyle='#15160d'; x.lineWidth=2.5; x.beginPath(); x.moveTo(cx,cy); x.lineTo(cx+Math.cos(ang)*r*0.92,cy+Math.sin(ang)*r*0.92); x.stroke();
+  x.fillStyle='#15160d'; x.beginPath(); x.arc(cx,cy,3,0,7); x.fill();
+}
+function fmt1(n){return (Math.round(n*10)/10).toFixed(1);}
+function renderUpper(){
+  $('v-rate').textContent=S.rate; $('v-aout').textContent=fmt1(S.aOut); $('v-vout').textContent=fmt1(S.vOut);
+  gauge('g-rate',S.rate,30,200); gauge('g-aout',S.aOut,0,20); gauge('g-vout',S.vOut,0,25);
+  $('modeInd').textContent=S.mode; $('lockInd').className='lockind'+(S.locked?' on':'');
+  const bf=P.batt==='ok'?100:(P.batt==='low'?22:6);
+  $('battFill').style.width=bf+'%'; $('battFill').style.background=P.batt==='ok'?'#15160d':'#9a2b22';
+  setLed('led-ap','ap','pace'); setLed('led-as','as','sense'); setLed('led-vp','vp','pace'); setLed('led-vs','vs','sense');
+  $('sock-a').className='socket a'+(aConnected()?'':' unplugged');
+  $('sock-v').className='socket v'+(vConnected()?'':' unplugged');
+}
+function setLed(el,k,kind){ $(el).className='dot '+kind+(((T-led[k])<150)?' on':''); }
+
+/* ========= LOWER SCREEN ========= */
+function visibleParams(){
+  const f=MODES[S.mode], it=[];
+  if(f.sA)it.push('A Sensitivity'); if(f.sV)it.push('V Sensitivity');
+  if(f.pA&&f.pV)it.push('A-V Interval'); if(S.mode==='DDD')it.push('Upper Rate');
+  if(f.track||S.mode==='DDI')it.push('PVARP'); if(S.mode==='DDD'||S.mode==='DDI')it.push('A. Tracking');
+  if(f.pA)it.push('Rapid Atrial Pacing'); it.push('Mode Selection'); return it;
+}
+function paramValue(n){switch(n){
+  case 'A Sensitivity': return A_SENS[S.aSensIdx]==='ASYNC'?'ASYNC':fmt1(A_SENS[S.aSensIdx])+' mV';
+  case 'V Sensitivity': return V_SENS[S.vSensIdx]==='ASYNC'?'ASYNC':fmt1(V_SENS[S.vSensIdx])+' mV';
+  case 'A-V Interval': return S.avi+' ms'; case 'Upper Rate': return S.upper+' ppm';
+  case 'PVARP': return S.pvarp+' ms'; case 'A. Tracking': return S.aTrack?'On':'Off';} return '';}
+function paramFrac(n){switch(n){
+  case 'A Sensitivity': return S.aSensIdx/(A_SENS.length-1); case 'V Sensitivity': return S.vSensIdx/(V_SENS.length-1);
+  case 'A-V Interval': return (S.avi-20)/280; case 'Upper Rate': return (S.upper-80)/150; case 'PVARP': return (S.pvarp-150)/350;} return null;}
+function renderLower(){
+  const el=$('lowerLcd');
+  if(!S.power){ el.className='lcd off lower'; el.innerHTML=''; return; }
+  if(S.locked){ el.className='lcd lower'; el.innerHTML='<div class="raphint">🔒 Locked<br><span style="font-weight:400">Press the key button to unlock<br>before adjusting parameters.</span></div>'; return; }
+  el.className='lcd lower';
+  if(S.screen==='modeSelect'){
+    let h='<div class="ttl">Mode Selection</div>';
+    MODE_LIST.forEach((m,i)=>{ h+=`<div class="moderadio ${i===S.selMode?'sel':''}" data-mode="${i}"><span class="rc"></span>${m}${i===S.selMode?' &nbsp;⏎':''}</div>`; });
+    h+='<div class="divider"></div><div class="mitem" data-back="1">Back</div>'; el.innerHTML=h;
+    el.querySelectorAll('[data-mode]').forEach(n=>n.onclick=()=>{S.selMode=+n.dataset.mode; applyMode(MODE_LIST[S.selMode]); S.screen='params'; render();});
+    el.querySelector('[data-back]').onclick=()=>{S.screen='params';render();};
+  } else if(S.screen==='rap'){
+    el.innerHTML=`<div class="mitem sel"><span>RAP</span><span>${S.rapRate} ppm</span></div>
+      <div class="bar"><div class="barfill" style="width:${(S.rapRate-80)/720*100}%"></div></div>
+      <div style="display:flex;justify-content:space-between;font-size:9px;margin:-2px 4px 0"><span>80</span><span>440</span><span>800</span></div>
+      <div class="raphint">${S.rapDelivering?'<span style="color:#b23b32">● DELIVERING RAP</span>':'Hold ⏎ to<br>DELIVER<br>Rapid Atrial Pacing'}</div>
+      <div class="divider"></div><div class="mitem" data-back="1">Back</div>`;
+    const b=el.querySelector('[data-back]'); if(b)b.onclick=()=>{S.screen='params';render();};
+  } else {
+    const items=visibleParams(); if(S.selParam>=items.length)S.selParam=items.length-1;
+    let h=''; items.forEach((name,i)=>{ const fr=paramFrac(name);
+      h+=`<div class="mitem ${i===S.selParam?'sel':''}" data-pi="${i}"><span>${name}</span><span>${paramValue(name)}</span></div>`;
+      if(fr!==null) h+=`<div class="bar"><div class="barfill" style="width:${Math.max(3,fr*100)}%"></div></div>`; });
+    el.innerHTML=h;
+    el.querySelectorAll('[data-pi]').forEach(n=>n.onclick=()=>{S.selParam=+n.dataset.pi;render();});
+  }
+}
+
+/* ========= ACTIONS ========= */
+function applyMode(m){ S.mode=m;
+  if(m==='AOO'||m==='VOO'||m==='DOO'){ if(m!=='VOO')S.aSensIdx=0; if(m!=='AOO')S.vSensIdx=0; }
+  if(m==='AAI'||m==='DDI')S.aTrack=false; if(m==='DDD')S.aTrack=true;
+  avActive=false; tLastVevt=T-60000/S.rate; tLastAevt=T-60000/S.rate; coach(modeCoach(m)); }
+
+/* Output-driven mode: when a chamber's output crosses 0, the device re-derives the base mode.
+   both outputs >0 -> DDD (or DDI if tracking off / DOO if async)
+   A only -> AAI/AOO ; V only -> VVI/VOO ; both 0 -> OOO. */
+let lastAOn=S.aOut>0, lastVOn=S.vOut>0;
+function syncOutFlags(){ lastAOn=S.aOut>0; lastVOn=S.vOut>0; }
+function autoModeOnOutput(){
+  const aOn=S.aOut>0, vOn=S.vOut>0;
+  if(aOn===lastAOn && vOn===lastVOn) return;   // only on a zero-crossing
+  lastAOn=aOn; lastVOn=vOn;
+  const async=(S.mode==='DOO'||S.mode==='AOO'||S.mode==='VOO');
+  let m;
+  if(aOn&&vOn) m=async?'DOO':(S.aTrack?'DDD':'DDI');
+  else if(aOn) m=async?'AOO':'AAI';
+  else if(vOn) m=async?'VOO':'VVI';
+  else m='OOO';
+  if(m!==S.mode) applyMode(m);
+}
+function modeCoach(m){ const t={
+  DDD:'DDD: senses & paces both chambers; a sensed P triggers a paced V (atrial tracking).',
+  DDI:'DDI: paces both chambers but does NOT track atrial activity (no P-synchronous V pacing).',
+  DOO:'DOO: asynchronous AV pacing — no sensing. Watch for competition with intrinsic beats.',
+  AAI:'AAI: atrial demand pacing. Needs intact AV conduction for a ventricular response.',
+  AOO:'AOO: asynchronous atrial pacing, no sensing.',
+  VVI:'VVI: ventricular demand pacing. Paces only if intrinsic V rate falls below set rate.',
+  VOO:'VOO: asynchronous ventricular pacing — competitive with intrinsic rhythm.',
+  OOO:'OOO: no pacing therapy. Use to observe the underlying rhythm.'}; return t[m]||''; }
+function powerOn(){ S.power=true;S.locked=false;S.paused=false; applyMode('DDD');
+  S.rate=80;S.aOut=10;S.vOut=10;S.aSensIdx=11;S.vSensIdx=10;S.avi=170;S.upper=110;S.pvarp=300;S.aTrack=true;S.screen='params';S.selParam=0;
+  syncOutFlags(); S.selfTestUntil=T+1500; $('upperLcd').className='lcd';
+  coach('Self-test running… device will begin pacing in DDD at 80 ppm.');
+  setTimeout(()=>{ if(S.power)coach(modeCoach('DDD')); },1600); }
+function powerOff(){ S.power=false;S.paused=false;avActive=false; $('upperLcd').className='lcd off'; $('lowerLcd').className='lcd off lower';
+  waves=[];pendingConduction=[];pendingPVC=0; closeStepper(); coach('Device off. All pacing stopped. Press power to restart.'); }
+function coach(t){ $('coach').innerHTML=t; }
+
+/* ========= KNOBS + STEPPER ========= */
+const KNOBS={
+  'k-rate':{ lbl:'Rate', unit:'ppm', frac:()=>(S.rate-30)/170, get:()=>S.rate, step:d=>{ if(!guard())return; S.rate=Math.max(30,Math.min(200,S.rate+5*d)); } },
+  'k-aout':{ lbl:'A Output', unit:'mA', frac:()=>S.aOut/20, get:()=>fmt1(S.aOut), step:d=>{ if(!guard())return; S.aOut=clampOut(S.aOut+stepOut(S.aOut,d),20); autoModeOnOutput(); } },
+  'k-vout':{ lbl:'V Output', unit:'mA', frac:()=>S.vOut/25, get:()=>fmt1(S.vOut), step:d=>{ if(!guard())return; S.vOut=clampOut(S.vOut+stepOut(S.vOut,d),25); autoModeOnOutput(); } },
+  'k-menu':{ lbl:'Menu', unit:'', frac:()=>0.5, get:()=>menuLabel(), step:d=>menuDial(d) }
+};
+function stepOut(v,d){ const s=v<1?0.1:(v<5?0.5:1); return s*d; }
+function clampOut(v,max){ v=Math.max(0,Math.min(max,v)); return Math.round(v*10)/10; }
+function guard(){ if(!S.power){coach('Turn the device on first (green power button).');return false;}
+  if(S.locked){coach('Device is locked. Press the key button to unlock before adjusting.');return false;} return true; }
+
+let stepperFor=null, repeatTimer=null, menuSpin=0;
+function rotKnob(id){ const ind=$(id).querySelector('.ind');
+  const ang = id==='k-menu' ? (menuSpin*24) : (-150+KNOBS[id].frac()*300);
+  ind.style.transform=`translateX(-50%) rotate(${ang}deg)`; }
+function knobStep(id,d){ KNOBS[id].step(d); if(id==='k-menu') menuSpin+=d; buzz(8); render(); if(stepperFor===id) updateStepper(); }
+function attachKnob(id){
+  const el=$(id);
+  el.addEventListener('click',e=>{ e.preventDefault(); toggleStepper(id); });
+  rotKnob(id);
+}
+function toggleStepper(id){ if(stepperFor===id){ closeStepper(); } else { openStepper(id); } }
+function menuLabel(){ if(S.screen==='rap')return S.rapRate; const it=visibleParams(); return paramValue(it[S.selParam])||'—'; }
+function openStepper(id){
+  if(!S.power){coach('Turn the device on first.');return;}
+  if(S.locked){coach('Device is locked. Press the key button to unlock before adjusting.');return;}
+  stepperFor=id; const sp=$('stepper'); sp.classList.add('open');
+  const r=$(id).getBoundingClientRect();
+  const w=96,h=164; let left=r.right+12; if(left+w>window.innerWidth-6)left=r.left-w-12;
+  let top=r.top+r.height/2-h/2; top=Math.max(6,Math.min(window.innerHeight-h-6,top));
+  sp.style.left=left+'px'; sp.style.top=top+'px'; updateStepper();
+}
+function closeStepper(){ stepperFor=null; $('stepper').classList.remove('open'); clearInterval(repeatTimer); }
+function updateStepper(){ if(!stepperFor)return; const k=KNOBS[stepperFor];
+  $('stepVal').textContent=k.get(); $('stepLbl').textContent=(stepperFor==='k-menu'?menuTitle():k.lbl)+(k.unit?' · '+k.unit:''); }
+function menuTitle(){ if(S.screen==='rap')return 'RAP ppm'; return visibleParams()[S.selParam]||'Menu'; }
+function bindStepBtn(btn,dir){
+  const el=$(btn);
+  const fire=()=>{ if(stepperFor) knobStep(stepperFor,dir); };
+  el.addEventListener('pointerdown',e=>{ e.preventDefault(); fire(); clearInterval(repeatTimer); let t0=Date.now();
+    repeatTimer=setInterval(()=>{ fire(); },Date.now()-t0>0?120:120); });
+  const stop=()=>clearInterval(repeatTimer);
+  el.addEventListener('pointerup',stop); el.addEventListener('pointerleave',stop); el.addEventListener('pointercancel',stop);
+}
+bindStepBtn('stepUp',1); bindStepBtn('stepDown',-1);
+document.addEventListener('pointerdown',e=>{ const sp=$('stepper'); if(stepperFor && !sp.contains(e.target) && !$(stepperFor).contains(e.target)) closeStepper(); });
+
+['k-rate','k-aout','k-vout','k-menu'].forEach(attachKnob);
+
+function menuDial(d){ if(!guard())return;
+  if(S.screen==='rap'){ S.rapRate=Math.max(80,Math.min(800,S.rapRate+10*d)); return; }
+  if(S.screen!=='params')return;
+  const name=visibleParams()[S.selParam];
+  switch(name){
+    case 'A Sensitivity': S.aSensIdx=Math.max(0,Math.min(A_SENS.length-1,S.aSensIdx+d)); break;
+    case 'V Sensitivity': S.vSensIdx=Math.max(0,Math.min(V_SENS.length-1,S.vSensIdx+d)); break;
+    case 'A-V Interval': S.avi=Math.max(20,Math.min(300,S.avi+10*d)); break;
+    case 'Upper Rate': S.upper=Math.max(80,Math.min(230,S.upper+5*d)); break;
+    case 'PVARP': S.pvarp=Math.max(150,Math.min(500,S.pvarp+10*d)); break;
+    case 'A. Tracking': if(d<0){S.aTrack=false;applyMode('DDI');}else{S.aTrack=true;applyMode('DDD');} break;
+  }
+}
+
+/* ========= KEYS ========= */
+$('pwrBtn').onclick=()=>{ buzz(12); if(!S.power)powerOn();else powerOff(); render(); };
+$('lockBtn').onclick=()=>{ if(!S.power)return; buzz(10); S.locked=!S.locked; $('lockBtn').classList.toggle('on',S.locked); if(S.locked)closeStepper(); coach(S.locked?'Device locked — parameters protected.':'Device unlocked.'); render(); };
+$('dooBtn').onclick=()=>{ if(!S.power){coach('Turn the device on first.');return;} buzz(20); doo(); };
+function doo(){ S.locked=false;$('lockBtn').classList.remove('on'); applyMode('DOO'); S.rate=Math.max(S.rate,80); S.aOut=20; S.vOut=25; S.aSensIdx=0; S.vSensIdx=0;
+  syncOutFlags(); coach('⚠ DOO EMERGENCY: high-output asynchronous AV pacing (no sensing). Press Enter to return to demand pacing.'); render(); }
+$('upBtn').onclick=()=>{ if(!guard())return; buzz(6); if(S.screen==='modeSelect')S.selMode=(S.selMode+MODE_LIST.length-1)%MODE_LIST.length; else if(S.screen==='params')S.selParam=Math.max(0,S.selParam-1); render(); };
+$('downBtn').onclick=()=>{ if(!guard())return; buzz(6); if(S.screen==='modeSelect')S.selMode=(S.selMode+1)%MODE_LIST.length; else if(S.screen==='params')S.selParam=Math.min(visibleParams().length-1,S.selParam+1); render(); };
+$('enterBtn').onclick=()=>{ if(!guard())return; buzz(8);
+  if(S.mode==='DOO'){ applyMode('DDD'); coach('Returned to DDD demand pacing.'); render(); return; }
+  if(S.screen==='params'){ const name=visibleParams()[S.selParam];
+    if(name==='Mode Selection'){ S.screen='modeSelect'; S.selMode=MODE_LIST.indexOf(S.mode); }
+    else if(name==='Rapid Atrial Pacing'){ S.screen='rap'; } render(); return; }
+  if(S.screen==='modeSelect'){ applyMode(MODE_LIST[S.selMode]); S.screen='params'; S.selParam=0; render(); } };
+let enterHold=null;
+$('enterBtn').addEventListener('pointerdown',()=>{ if(S.screen==='rap'&&S.power&&!S.locked){ enterHold=setTimeout(()=>{ S.rapDelivering=true; buzz(30); coach('● Delivering Rapid Atrial Pacing at '+S.rapRate+' ppm (AOO). Release Enter to stop.'); render(); },350); } });
+function stopRap(){ if(enterHold){clearTimeout(enterHold);enterHold=null;} if(S.rapDelivering){ S.rapDelivering=false;
+  if(P.rhythm==='aflutter'&&S.rapRate>=300){ P.rhythm='sinus';P.aRate=75;P.vRate=0; syncFac(); coach('RAP burst terminated the flutter — sinus rhythm restored. (Not all flutter converts; monitor closely.)'); }
+  else coach('RAP burst ended; pacing resumed at previous settings.'); render(); } }
+window.addEventListener('pointerup',stopRap);
+$('pauseBtn').addEventListener('pointerdown',()=>{ if(!guard())return; S.paused=true; S.pauseUntil=T+10000; buzz(15); coach('Pacing & sensing suspended (≤10 s) — observe the underlying rhythm. Release to resume.'); });
+function endPause(){ if(S.paused){ S.paused=false; coach('Pacing resumed.'); } }
+$('pauseBtn').addEventListener('pointerup',endPause); $('pauseBtn').addEventListener('pointercancel',endPause);
+
+/* keyboard arrows for menu dial convenience */
+window.addEventListener('keydown',e=>{ if(!S.power)return;
+  if(e.key==='ArrowRight'){menuDial(1);render();} if(e.key==='ArrowLeft'){menuDial(-1);render();} });
+
+/* ========= CONNECTIONS MODAL ========= */
+const cc=$('connCanvas'), cctx=cc.getContext('2d'); let hotspots=[];
+$('sock-a').onclick=()=>openConn('A'); $('sock-v').onclick=()=>openConn('V');
+$('connClose').onclick=()=>$('connModal').classList.remove('open');
+$('connModal').addEventListener('click',e=>{ if(e.target===$('connModal')) $('connModal').classList.remove('open'); });
+function openConn(){ $('connModal').classList.add('open'); updateWireBtns(); drawConn(); }
+document.querySelectorAll('.wirepick [data-w]').forEach(b=>b.onclick=()=>{ conn.wire=b.dataset.w; $('f-wire').value=conn.wire; updateWireBtns(); drawConn(); });
+function updateWireBtns(){ $('wEpi').classList.toggle('act',conn.wire==='epicardial'); $('wTv').classList.toggle('act',conn.wire==='transvenous'); }
+
+function roundRect(x,y,w,h,r){ cctx.beginPath(); cctx.moveTo(x+r,y); cctx.arcTo(x+w,y,x+w,y+h,r); cctx.arcTo(x+w,y+h,x,y+h,r); cctx.arcTo(x,y+h,x,y,r); cctx.arcTo(x,y,x+w,y,r); cctx.closePath(); }
+function drawConnPt(x,y,ok){
+  cctx.save();
+  cctx.beginPath(); cctx.arc(x,y,8,0,7); cctx.fillStyle=ok?'#1d3a25':'#3a1512'; cctx.fill();
+  cctx.lineWidth=2.4; cctx.strokeStyle=ok?'#3ddc7e':'#d9433b'; cctx.stroke();
+  if(ok){ cctx.strokeStyle='#3ddc7e'; cctx.lineWidth=2; cctx.beginPath(); cctx.moveTo(x-3.5,y); cctx.lineTo(x-1,y+3); cctx.lineTo(x+4,y-3.5); cctx.stroke(); }
+  else { cctx.strokeStyle='#d9433b'; cctx.lineWidth=2.2; cctx.beginPath(); cctx.moveTo(x-4,y-4); cctx.lineTo(x+4,y+4); cctx.moveTo(x+4,y-4); cctx.lineTo(x-4,y+4); cctx.stroke(); }
+  cctx.restore();
+}
+function wire(x1,y1,x2,y2,col,wd){ cctx.strokeStyle=col; cctx.lineWidth=wd||2.4; cctx.lineCap='round';
+  cctx.beginPath(); cctx.moveTo(x1,y1); cctx.bezierCurveTo(x1,y1+22,x2,y2-22,x2,y2); cctx.stroke(); }
+function coil(px,py){ // epicardial myocardial coil electrode
+  cctx.strokeStyle='#c9a24a'; cctx.lineWidth=2; cctx.beginPath();
+  for(let i=0;i<=10;i++){ const a=i/10; const xx=px-12+a*24; const yy=py+Math.sin(a*Math.PI*5)*3.2; if(i===0)cctx.moveTo(xx,yy);else cctx.lineTo(xx,yy);} cctx.stroke();
+}
+
+/* one channel: generator port -> 5492 cable plug -> connector body (+/-) -> heart wires -> myocardium */
+function channel(x,accent,bodyCol,keyGen,keyLead,model,label,attach){
+  const gOK=conn[keyGen], lOK=conn[keyLead];
+  const portTop=26, portH=22, portBot=portTop+portH;
+  const plugY=gOK?portBot+6:portBot+22;
+  // generator socket (silver, keyed) + colored ring
+  cctx.fillStyle='#cfd5dc'; cctx.strokeStyle=accent; cctx.lineWidth=2.5; roundRect(x-22,portTop,44,portH,6); cctx.fill(); cctx.stroke();
+  cctx.fillStyle='#46525f'; cctx.beginPath(); cctx.arc(x-8,portTop+11,2.4,0,7); cctx.arc(x+8,portTop+11,2.4,0,7); cctx.fill();
+  cctx.fillStyle=accent; cctx.font='bold 13px sans-serif'; cctx.textAlign='center'; cctx.fillText(label,x,18);
+  // 5492 cable plug (touchproof, dark) + grey strain relief
+  cctx.fillStyle='#232a33'; cctx.strokeStyle='#48535f'; cctx.lineWidth=1.6; roundRect(x-12,plugY,24,18,5); cctx.fill(); cctx.stroke();
+  // gen connection point
+  const gy=(portBot+plugY)/2; drawConnPt(x,gy,gOK); hotspots.push({x,y:gy,r:22,key:keyGen});
+  // grey cable plug -> connector body
+  const bodyTop=156, bodyH=46;
+  cctx.strokeStyle='#9aa3ad'; cctx.lineWidth=5.5; cctx.lineCap='round'; cctx.beginPath(); cctx.moveTo(x,plugY+18); cctx.lineTo(x,bodyTop); cctx.stroke();
+  cctx.strokeStyle='#c4ccd4'; cctx.lineWidth=1.4; cctx.beginPath(); cctx.moveTo(x-1.4,plugY+18); cctx.lineTo(x-1.4,bodyTop); cctx.stroke();
+  // connector body (5492AL / 5492VL)
+  cctx.fillStyle=bodyCol; cctx.strokeStyle=accent; cctx.lineWidth=2; roundRect(x-34,bodyTop,68,bodyH,9); cctx.fill(); cctx.stroke();
+  cctx.fillStyle='#f1f5f9'; cctx.font='bold 9.5px sans-serif'; cctx.fillText(model,x,bodyTop+15);
+  // + / - terminals (red + , dark -)
+  cctx.font='bold 13px sans-serif'; cctx.fillStyle='#ff7165'; cctx.fillText('+',x-17,bodyTop+38);
+  cctx.fillStyle='#cfd6de'; cctx.fillText('–',x+17,bodyTop+38);
+  cctx.fillStyle='#2a323c'; roundRect(x-24,bodyTop+30,12,8,2); cctx.fill(); roundRect(x+12,bodyTop+30,12,8,2); cctx.fill();
+  // heart wires (red + / black -) from terminals, with break if !lOK
+  const bodyBot=bodyTop+bodyH;
+  const wY=lOK?bodyBot+6:bodyBot+22;
+  const ly=(bodyBot+wY)/2; drawConnPt(x,ly,lOK); hotspots.push({x,y:ly,r:24,key:keyLead});
+  // wires from wedge terminals down to myocardium
+  const ax=attach[0], ay=attach[1];
+  wire(x-15,wY, ax-7,ay, '#e0564d',2.6);   // + red
+  wire(x+15,wY, ax+7,ay, '#222a30',2.6);   // - dark
+  if(conn.wire==='epicardial'){ coil(ax,ay); // exit needle
+    cctx.strokeStyle='#c9c1a0'; cctx.lineWidth=1.6; cctx.beginPath(); cctx.moveTo(ax+12,ay+2); cctx.quadraticCurveTo(ax+26,ay+6,ax+22,ay+16); cctx.stroke();
+  } else { // transvenous catheter electrode bands
+    cctx.strokeStyle='#cfd6de'; cctx.lineWidth=4; cctx.beginPath(); cctx.moveTo(ax,ay-6); cctx.lineTo(ax,ay+10); cctx.stroke();
+    cctx.fillStyle=accent; cctx.fillRect(ax-3,ay-2,6,3); cctx.fillRect(ax-3,ay+5,6,3);
+  }
+}
+function drawConn(){
+  hotspots=[]; const W=cc.width,H=cc.height;
+  cctx.fillStyle='#070b11'; cctx.fillRect(0,0,W,H);
+  // generator connector-block bar
+  cctx.fillStyle='#171c24'; roundRect(70,6,W-140,16,4); cctx.fill();
+  cctx.fillStyle='#6c7785'; cctx.font='10px sans-serif'; cctx.textAlign='center'; cctx.fillText('5392 GENERATOR — top connector block',W/2,18);
+  // heart silhouette (drawn first so wires overlay)
+  const hx=330,hy=350;
+  cctx.fillStyle='#2a1418'; cctx.strokeStyle='#6e3035'; cctx.lineWidth=2;
+  cctx.beginPath();
+  cctx.moveTo(hx,hy+44);
+  cctx.bezierCurveTo(hx-78,hy+6, hx-58,hy-46, hx-16,hy-20);
+  cctx.bezierCurveTo(hx-6,hy-30, hx+6,hy-30, hx+16,hy-20);
+  cctx.bezierCurveTo(hx+58,hy-46, hx+78,hy+6, hx,hy+44);
+  cctx.closePath(); cctx.fill(); cctx.stroke();
+  cctx.fillStyle='#7d4a4f'; cctx.font='9px sans-serif';
+  cctx.fillText('RA',hx-26,hy-6); cctx.fillText('RV',hx+22,hy+18);
+  // channels (atrium accent blue per device socket code, ventricle white)
+  channel(150,'#5db4ff','#16314a','aGen','aLead','5492AL · A','A',[hx-26,hy-2]);
+  channel(495,'#e2e8ee','#2c3742','vGen','vLead','5492VL · V','V',[hx+24,hy+20]);
+  cctx.fillStyle='#8b97a6'; cctx.font='10px sans-serif'; cctx.textAlign='center';
+  cctx.fillText(conn.wire==='epicardial'?'StreamLine epicardial wires on myocardium':'Transvenous pacing catheter in RA / RV',hx,hy+58);
+  const aOK=aConnected(), vOK=vConnected();
+  $('connTip').innerHTML = (aOK&&vOK)
+    ? '✅ Both channels fully connected (generator → 5492 cable → heart wires). Tap any green point to simulate a disconnection.'
+    : `⚠ ${!aOK?'Atrial':''}${(!aOK&&!vOK)?' & ':''}${!vOK?'Ventricular':''} circuit is broken — that channel cannot pace or sense. Tap the red ✕ point(s) to reconnect.`;
+}
+cc.addEventListener('click',e=>{
+  const r=cc.getBoundingClientRect(); const sx=cc.width/r.width, sy=cc.height/r.height;
+  const px=(e.clientX-r.left)*sx, py=(e.clientY-r.top)*sy;
+  for(const h of hotspots){ if((px-h.x)**2+(py-h.y)**2 <= h.r*h.r){ conn[h.key]=!conn[h.key]; buzz(10); drawConn(); syncFac(); render(); return; } }
+});
+
+/* ========= RENDER ========= */
+function render(){ $('upperLcd').className=S.power?'lcd':'lcd off'; renderUpper(); renderLower(); ['k-rate','k-aout','k-vout','k-menu'].forEach(rotKnob); if(stepperFor)updateStepper(); }
+function applyNotifyUI(){ $('f-notify').value=N.mode; $('notifyCustom').style.display=N.mode==='custom'?'block':'none';
+  ['capture','sensing','lead','battery','rhythm','ok'].forEach(c=>{ const el=$('n-'+c); if(el)el.checked=N[c]; }); }
+
+/* ========= ANNUNCIATORS ========= */
+function showCat(cat){ if(N.mode==='validation')return false; if(N.mode==='training')return true; return N[cat]; }
+function updateAnnun(){
+  const box=$('annun'); const tags=[];
+  if(S.power&&T>=S.selfTestUntil){
+    const f=MODES[S.mode];
+    if(showCat('capture')){
+      if(f.pV&&S.vOut>0&&P.leadV&&P.batt!=='depleted'&&S.vOut<P.vThr) tags.push(['LOSS OF V CAPTURE','warn']);
+      if(f.pA&&S.aOut>0&&P.leadA&&P.batt!=='depleted'&&S.aOut<P.aThr) tags.push(['LOSS OF A CAPTURE','warn']);
+    }
+    if(showCat('lead')){
+      if(f.pA&&!aConnected()) tags.push(['A NOT CONNECTED','warn']);
+      if(f.pV&&!vConnected()) tags.push(['V NOT CONNECTED','warn']);
+      if(f.pV&&vConnected()&&!P.leadV) tags.push(['V LEAD / NO OUTPUT','warn']);
+      if(f.pA&&aConnected()&&!P.leadA) tags.push(['A LEAD / NO OUTPUT','warn']);
+    }
+    if(showCat('sensing')){
+      if(P.oversV||P.oversA) tags.push(['OVERSENSING','warn']);
+      if(f.sV&&vSensMv()!==Infinity&&vSensMv()>P.vSig&&hasIntrinsicV()) tags.push(['V UNDERSENSING','warn']);
+      if(f.sA&&aSensMv()!==Infinity&&aSensMv()>P.aSig&&hasIntrinsicA()) tags.push(['A UNDERSENSING','warn']);
+    }
+    if(showCat('battery')){ if(P.batt==='low')tags.push(['LOW BATTERY','warn']); if(P.batt==='depleted')tags.push(['BATTERY DEPLETED','warn']); }
+    if(S.paused) tags.push(['PACING SUSPENDED','info']);
+    if(showCat('rhythm')){ if(currentHR()>0&&currentHR()<30&&!S.paused) tags.push(['SEVERE BRADY / ASYSTOLE','warn']);
+      if(P.rhythm==='vt') tags.push(['WIDE-COMPLEX TACHYCARDIA','warn']); }
+    if(showCat('ok')&&!tags.some(t=>t[1]==='warn')&&!S.paused) tags.push(['PACING OK','ok']);
+  }
+  box.innerHTML=tags.map(t=>`<span class="tag ${t[1]}">${t[0]}</span>`).join('');
+}
+function hasIntrinsicV(){ return ['sinus','sbrady','stach','avb1','mobitz1','mobitz2','chb','junctional','accel_junctional','idioventricular','aivr','vt','pvc','aflutter','afib'].includes(P.rhythm) && currentHR()>0; }
+function hasIntrinsicA(){ return ['sinus','sbrady','stach','avb1','mobitz1','mobitz2','chb','pvc'].includes(P.rhythm)&&P.aRate>0; }
+function currentHR(){ if(beatTimes.length<2)return 0; const span=(beatTimes[beatTimes.length-1]-beatTimes[0])/1000; if(span<=0)return 0; return Math.round((beatTimes.length-1)/span*60); }
+
+/* ========= FACILITATOR ========= */
+function setDockPad(){ document.body.style.paddingBottom = '0'; }
+$('facToggle').onclick=()=>{ $('facPanel').classList.toggle('collapsed'); $('facToggle').textContent=$('facPanel').classList.contains('collapsed')?'▴ Show controls':'▾ Hide'; setDockPad(); };
+function showFacTab(name){
+  document.querySelectorAll('.facpanel .fgrp').forEach(g=>{ g.style.display=(g.dataset.tab===name)?'':'none'; });
+  document.querySelectorAll('#facTabs .ftab').forEach(b=>{ b.classList.toggle('on',b.dataset.tab===name); });
+  if($('facPanel').classList.contains('collapsed')){ $('facPanel').classList.remove('collapsed'); $('facToggle').textContent='▾ Hide'; setDockPad(); }
+}
+document.querySelectorAll('#facTabs .ftab').forEach(b=>{ b.onclick=()=>showFacTab(b.dataset.tab); });
+showFacTab('scenarios');
+function bindRange(id,obj,key,disp){ const el=$(id),v=$(id+'-v'); el.oninput=()=>{ obj[key]=parseFloat(el.value); if(v)v.textContent=disp?disp(obj[key]):obj[key]; }; }
+bindRange('f-arate',P,'aRate'); bindRange('f-vrate',P,'vRate');
+bindRange('f-athr',P,'aThr',fmt1); bindRange('f-vthr',P,'vThr',fmt1);
+bindRange('f-asig',P,'aSig',fmt1); bindRange('f-vsig',P,'vSig',fmt1);
+$('f-rhythm').onchange=()=>{ setRhythm($('f-rhythm').value); };
+$('f-leadA').onchange=()=>{P.leadA=!$('f-leadA').checked;};
+$('f-leadV').onchange=()=>{P.leadV=!$('f-leadV').checked;};
+$('f-oversV').onchange=()=>{P.oversV=$('f-oversV').checked;};
+$('f-oversA').onchange=()=>{P.oversA=$('f-oversA').checked;};
+$('f-batt').onchange=()=>{P.batt=$('f-batt').value;};
+$('f-wire').onchange=()=>{ conn.wire=$('f-wire').value; updateWireBtns(); if($('connModal').classList.contains('open'))drawConn(); };
+$('f-discA').onchange=()=>{ conn.aGen=!$('f-discA').checked; if($('connModal').classList.contains('open'))drawConn(); render(); };
+$('f-discV').onchange=()=>{ conn.vGen=!$('f-discV').checked; if($('connModal').classList.contains('open'))drawConn(); render(); };
+$('f-notify').onchange=()=>{ N.mode=$('f-notify').value; $('notifyCustom').style.display=N.mode==='custom'?'block':'none'; };
+['capture','sensing','lead','battery','rhythm','ok'].forEach(c=>{ $('n-'+c).onchange=()=>{N[c]=$('n-'+c).checked;}; });
+
+function setRhythm(r){ P.rhythm=r; const m=RHY[r]; if(m){ P.aRate=m.aDef; P.vRate=m.vDef; } wenckIdx=0;mobitz2Idx=0;pvcCount=0;pendingPVC=0;pendingConduction=[]; syncFac(); $('rhythmHint').textContent=m?m.hint:''; }
+function syncFac(){
+  $('f-rhythm').value=P.rhythm;
+  $('f-arate').value=P.aRate; $('f-arate-v').textContent=P.aRate;
+  $('f-vrate').value=P.vRate; $('f-vrate-v').textContent=P.vRate;
+  $('f-athr').value=P.aThr; $('f-athr-v').textContent=fmt1(P.aThr);
+  $('f-vthr').value=P.vThr; $('f-vthr-v').textContent=fmt1(P.vThr);
+  $('f-asig').value=P.aSig; $('f-asig-v').textContent=fmt1(P.aSig);
+  $('f-vsig').value=P.vSig; $('f-vsig-v').textContent=fmt1(P.vSig);
+  $('f-leadA').checked=!P.leadA; $('f-leadV').checked=!P.leadV; $('f-oversV').checked=P.oversV; $('f-oversA').checked=P.oversA; $('f-batt').value=P.batt;
+  $('f-wire').value=conn.wire; $('f-discA').checked=!conn.aGen; $('f-discV').checked=!conn.vGen;
+  $('rhythmHint').textContent=RHY[P.rhythm]?RHY[P.rhythm].hint:'';
+}
+const SCN={
+  chb:()=>set({rhythm:'chb',aRate:90,vRate:35,aThr:1.0,vThr:1.5,aSig:2.5,vSig:10}),
+  asystole:()=>set({rhythm:'asystole',aRate:0,vRate:0}),
+  sbrady:()=>set({rhythm:'sbrady',aRate:38,vRate:0}),
+  sinus:()=>set({rhythm:'sinus',aRate:75,vRate:0}),
+  mobitz1:()=>set({rhythm:'mobitz1',aRate:75,vRate:0}),
+  mobitz2:()=>set({rhythm:'mobitz2',aRate:75,vRate:0}),
+  avb1:()=>set({rhythm:'avb1',aRate:75,vRate:0}),
+  junctional:()=>set({rhythm:'junctional',aRate:0,vRate:46}),
+  idiovent:()=>set({rhythm:'idioventricular',aRate:0,vRate:34}),
+  aivr:()=>set({rhythm:'aivr',aRate:0,vRate:82}),
+  vt:()=>set({rhythm:'vt',aRate:0,vRate:170}),
+  pvc:()=>set({rhythm:'pvc',aRate:75,vRate:0}),
+  capturefail:()=>set({rhythm:'chb',aRate:80,vRate:30,vThr:9.0}),
+  undersense:()=>set({rhythm:'sinus',aRate:70,vRate:0,vSig:1.5}),
+  oversense:()=>{set({rhythm:'sinus',aRate:60,vRate:0}); P.oversV=true;},
+  leadfx:()=>{set({rhythm:'chb',aRate:80,vRate:30}); P.leadV=false;},
+  discV:()=>{set({rhythm:'chb',aRate:80,vRate:30}); conn.vGen=false; coach('The pacemaker is on and set correctly but the ventricle isn’t pacing. Have the learner inspect connections — click the V socket on the device.');},
+  flutter:()=>set({rhythm:'aflutter',aRate:300,vRate:150}),
+  afib:()=>set({rhythm:'afib',aRate:0,vRate:0}),
+  threshtest:()=>{ set({rhythm:'sinus',aRate:75,vRate:0,vSig:4}); coach('Threshold-test setup: intrinsic rhythm present. On the device, choose VVI, set Rate ~10 below intrinsic, then sweep V Sensitivity (sensing) or V Output (capture).'); },
+  lowbatt:()=>{ set({}); P.batt='low'; }
+};
+function set(o){ const r=o.rhythm||P.rhythm; const base=RHY[r]||{}; Object.assign(P,o); if(!('aRate'in o)&&base.aDef!=null)P.aRate=base.aDef; }
+function loadScenario(key,label){
+  if(!SCN[key]) return;
+  P.leadA=true;P.leadV=true;P.oversV=false;P.oversA=false;P.batt='ok';
+  conn.aGen=conn.aLead=conn.vGen=conn.vLead=true;
+  wenckIdx=0;mobitz2Idx=0;pvcCount=0;pendingPVC=0;pendingConduction=[];
+  SCN[key](); syncFac();
+  if($('connModal').classList.contains('open'))drawConn();
+  if(key!=='threshtest') coach('Scenario loaded: '+(label||key)+'. Adjust the device to manage it.');
+}
+document.querySelectorAll('[data-scn]').forEach(b=>b.onclick=()=>loadScenario(b.dataset.scn,b.textContent.replace(/\s+/g,' ').trim()));
+const _quickScn=$('quickScn'); if(_quickScn) _quickScn.onchange=()=>{ if(_quickScn.value) loadScenario(_quickScn.value,_quickScn.options[_quickScn.selectedIndex].text); };
+
+/* ========= CT SURGERY STEPPED SCENARIOS ========= */
+const CTSCN={
+  tavr_chb:{name:'SCE 4 · Post-TAVR complete heart block',steps:[
+    {label:'Step 1/4 — Stable post-TAVR (sinus, intact conduction)',coach:'Baseline after TAVR: sinus ~72, 1:1 conduction. Monitor for new AV block; device on standby (DDD/VVI backup).',set:{rhythm:'sinus',aRate:72,vRate:0,vThr:1.5}},
+    {label:'Step 2/4 — NEW complete heart block, slow escape',coach:'New 3° AV block, escape ~38, hypotensive. Learner should pace (DDD or VVI) at ~70 and confirm 1:1 capture AND a pulse. Atropine is unreliable here.',set:{rhythm:'chb',aRate:90,vRate:38,vThr:1.5}},
+    {label:'Step 3/4 — Loss of capture (rising threshold)',coach:'Pacing spikes WITHOUT capture — V threshold has risen to ~9 mA. Learner must increase V Output (mA) and check leads/connections until 1:1 capture returns.',set:{rhythm:'chb',aRate:90,vRate:38,vThr:9.0}},
+    {label:'Step 4/4 — Capture restored / stable',coach:'Threshold back to baseline after troubleshooting. Confirm 1:1 capture, a mechanical pulse, and a safe output margin (~2× threshold). Anticipate EP/permanent pacemaker.',set:{rhythm:'chb',aRate:90,vRate:38,vThr:1.5}},
+  ]},
+  maze_pace:{name:'SCE 3 · Maze — pacing optimization',steps:[
+    {label:'Step 1/3 — Accelerated junctional, low CI',coach:'Accelerated junctional ~62 with lost atrial kick → low cardiac index. Learner sets DDD and AV-paces ~86 to restore synchrony; confirm capture (watch CI rise on HemoSphere).',set:{rhythm:'accel_junctional',aRate:0,vRate:62,aThr:1.0,vThr:1.0}},
+    {label:'Step 2/3 — AV-paced & optimized',coach:'With AV pacing ~86 capturing, CI and SvO2 improve. Confirm 1:1 A and V capture; begin weaning pressors.',set:{rhythm:'accel_junctional',aRate:0,vRate:62}},
+    {label:'Step 3/3 — Morning: underlying recovered, hypertensive',coach:'Intrinsic sinus ~88 has recovered; patient now hypertensive. Reassess need to pace — demand mode with a backup rate is appropriate.',set:{rhythm:'sinus',aRate:88,vRate:0}},
+  ]},
+  pod0_paced:{name:'SCE 2 · POD0 AV-paced baseline',steps:[
+    {label:'Step 1/1 — POD0 open-heart, AV-paced ~86',coach:'POD0 MVR/CABG with slow underlying — running 100% AV-paced ~86 in DDD. Context/monitoring preset; pairs with the bleeding→tamponade case on HemoSphere & IntelliVue.',set:{rhythm:'chb',aRate:96,vRate:40,aThr:1.0,vThr:1.2}},
+  ]},
+};
+let ctId='',ctStep=0;
+function ctResetFaults(){ P.leadA=true;P.leadV=true;P.oversV=false;P.oversA=false;P.batt='ok';
+  conn.aGen=conn.aLead=conn.vGen=conn.vLead=true;
+  wenckIdx=0;mobitz2Idx=0;pvcCount=0;pendingPVC=0;pendingConduction=[]; }
+function ctApply(){ const sc=CTSCN[ctId]; const ind=$('ctStep'); if(!sc){ if(ind)ind.textContent='No CT scenario loaded.'; return; }
+  const st=sc.steps[ctStep]; ctResetFaults(); set(st.set); syncFac();
+  if($('connModal')&&$('connModal').classList.contains('open'))drawConn();
+  if(ind) ind.innerHTML='<b>'+sc.name+'</b><br>'+st.label;
+  coach(st.coach); }
+function ctLoad(id){ ctId=id; ctStep=0; const ind=$('ctStep'); if(id) ctApply(); else if(ind) ind.textContent='No CT scenario loaded.'; }
+const _ctScn=$('ctScn'); if(_ctScn) _ctScn.onchange=()=>ctLoad(_ctScn.value);
+const _ctNext=$('ctNext'); if(_ctNext) _ctNext.onclick=()=>{ const sc=CTSCN[ctId]; if(sc&&ctStep<sc.steps.length-1){ctStep++;ctApply();} };
+const _ctPrev=$('ctPrev'); if(_ctPrev) _ctPrev.onclick=()=>{ const sc=CTSCN[ctId]; if(sc&&ctStep>0){ctStep--;ctApply();} };
+const _ctReset=$('ctReset'); if(_ctReset) _ctReset.onclick=()=>{ if(ctId){ctStep=0;ctApply();} };
+
+/* ========= LOOP ========= */
+let acc=0,last=performance.now();
+function loop(now){ let dtr=now-last; last=now; if(dtr>120)dtr=120; acc+=dtr;
+  while(acc>=DT){ step(); acc-=DT; }
+  drawEcg(); $('hrNum').textContent=S.power?(currentHR()||'--'):'--';
+  renderUpper(); updateAnnun(); requestAnimationFrame(loop); }
+/* ========= DUAL-SCREEN SYNC ========= */
+const SYNC_S=['power','locked','mode','rate','aOut','vOut','aSensIdx','vSensIdx','avi','upper','pvarp','aTrack','rapRate','screen','selMode','selParam'];
+function snapState(){ const s={}; SYNC_S.forEach(k=>s[k]=S[k]); return JSON.stringify({s,P,conn,N}); }
+function sendSync(str){ lastSync=str; const msg={win:WIN_ID,data:str};
+  try{ localStorage.setItem(SYNC_KEY,JSON.stringify(msg)); }catch(e){}
+  if(bc){ try{ bc.postMessage(msg); }catch(e){} }
+  if(relay.ws&&relay.ws.readyState===1){ try{ relay.ws.send(JSON.stringify({type:'state',code:relay.code,win:WIN_ID,data:str})); }catch(e){} } }
+function applyRemote(msg){
+  if(!msg||msg.win===WIN_ID||msg.data===lastSync) return;
+  lastSync=msg.data; lastRecvTime=Date.now();
+  let o; try{ o=JSON.parse(msg.data); }catch(e){ return; }
+  if(o.s) SYNC_S.forEach(k=>{ if(k in o.s) S[k]=o.s[k]; });
+  if(o.P) Object.assign(P,o.P); if(o.conn) Object.assign(conn,o.conn); if(o.N) Object.assign(N,o.N);
+  syncOutFlags(); syncReady=true;
+  applyNotifyUI(); syncFac(); render(); if($('connModal').classList.contains('open')) drawConn();
+}
+function pushSync(){ if(!syncReady) return; const s=snapState(); if(s===lastSync) return; sendSync(s); }
+setInterval(pushSync,140);
+setInterval(()=>{ if(syncReady) sendSync(snapState()); },600); // heartbeat so a newly-opened window catches up
+window.addEventListener('storage',e=>{ if(e.key===SYNC_KEY&&e.newValue){ try{ applyRemote(JSON.parse(e.newValue)); }catch(_){} } });
+if(bc) bc.onmessage=ev=>applyRemote(ev.data);
+setInterval(()=>{ const on=Date.now()-lastRecvTime<2200; const d=$('syncDot'); if(d)d.className='dot'+(on?' on':'');
+  const st=$('syncSt'); if(st&&ROLE==='control') st.textContent=on?'● Linked — your changes appear on the learner display live.':'Standalone — open a learner display to start a synced two-screen session.'; },800);
+
+/* ===== cross-device relay (WebSocket) ===== */
+function relayLog(t){ const st=$('remoteSt'); if(st)st.textContent=t; const lc=$('learnerConn'); if(lc)lc.textContent=t; }
+function genCode(){ const a='ABCDEFGHJKMNPQRSTUVWXYZ23456789'; let s=''; for(let i=0;i<6;i++)s+=a[Math.floor(Math.random()*a.length)]; return s; }
+function learnerLink(){ const base=location.href.split('?')[0].split('#')[0]; return base+'?role=learner&relay='+encodeURIComponent(relay.url)+'&code='+encodeURIComponent(relay.code); }
+function updateRelayUI(){
+  const connected=relay.ws&&relay.ws.readyState===1;
+  const d=$('remoteDot'); if(d)d.className='dot'+((connected&&relay.peers>1)?' on':'');
+  if(ROLE==='control'){
+    if(connected){ const cl=$('copyLink'); if(cl)cl.style.display='';
+      relayLog(relay.peers>1?('● Remote linked — '+(relay.peers-1)+' learner device(s). Code: '+relay.code):('Waiting for a learner to join…  Code: '+relay.code)); }
+  } else if(connected){ relayLog(relay.peers>1?'● Connected to facilitator — live.':'Connected — waiting for the facilitator…'); }
+}
+function connectRelay(){
+  if(!relay.url||!relay.code){ relayLog('Missing relay URL or session code.'); return; }
+  relay.want=true; let ws;
+  try{ ws=new WebSocket(relay.url); }catch(e){ relayLog('Invalid relay URL (use wss://…).'); return; }
+  relay.ws=ws;
+  ws.onopen=()=>{ relay.backoff=1000; try{ ws.send(JSON.stringify({type:'join',code:relay.code,win:WIN_ID,role:ROLE})); }catch(e){}
+    if(ROLE==='control') sendSync(snapState()); updateRelayUI(); };
+  ws.onmessage=ev=>{ let m; try{ m=JSON.parse(ev.data); }catch(e){ return; }
+    if(m.type==='state') applyRemote({win:m.win,data:m.data});
+    else if(m.type==='peers'){ relay.peers=m.n; updateRelayUI(); } };
+  ws.onclose=()=>{ updateRelayUI(); if(relay.want){ setTimeout(connectRelay,relay.backoff); relay.backoff=Math.min(Math.round(relay.backoff*1.6),10000); } };
+  ws.onerror=()=>{ try{ ws.close(); }catch(e){} };
+}
+setInterval(()=>{ if(relay.ws&&relay.ws.readyState===1){ try{ relay.ws.send(JSON.stringify({type:'ping'})); }catch(e){} } },25000);
+
+function applyRole(){
+  if(ROLE==='learner'){
+    document.body.classList.add('learnerview');
+    const fp=$('facPanel'),ft=$('facTab'); if(fp)fp.style.display='none'; if(ft)ft.style.display='none';
+    const dt=$('dashTop'); if(dt) dt.innerHTML='<span class="badge">● LEARNER VIEW — <span id="learnerConn">standby</span></span>';
+    document.title='5392 — Learner Display';
+    if(relay.url&&relay.code){ relayLog('Connecting to facilitator…'); connectRelay(); }
+    else relayLog('Open the facilitator’s learner link on this device to connect.');
+  } else {
+    document.body.classList.add('dashview');
+    document.querySelectorAll('.facpanel .fgrp').forEach(g=>{ g.style.display=''; }); // dashboard: show every control
+    const lb=$('launcher'); if(lb) lb.onclick=()=>{ const base=location.href.split('?')[0].split('#')[0];
+      window.open(base+'?role=learner','learner5392'); const st=$('syncSt'); if(st)st.textContent='Learner display opened — drag it to the second screen / projector.'; };
+    if($('relayUrl')) $('relayUrl').value=relay.url;
+    const rb=$('remoteBtn'); if(rb) rb.onclick=()=>{ relay.url=(($('relayUrl').value)||'').trim();
+      if(!/^wss?:\/\//i.test(relay.url)){ relayLog('Enter your relay URL first (wss://…).'); return; }
+      try{ localStorage.setItem('sim5392_relay',relay.url); }catch(e){}
+      if(!relay.code) relay.code=genCode(); relayLog('Connecting…  Code: '+relay.code); connectRelay(); };
+    const cl=$('copyLink'); if(cl) cl.onclick=()=>{ const l=learnerLink(); try{ navigator.clipboard.writeText(l); }catch(e){}
+      relayLog('Learner link copied — send it to the learner’s device.  Code: '+relay.code); };
+    if(relay.url&&relay.code) connectRelay(); // control reopened via a link that carries the code
+  }
+  setDockPad();
+}
+
+applyRole(); syncFac(); render(); requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
