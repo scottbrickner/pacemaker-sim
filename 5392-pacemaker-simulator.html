@@ -33,16 +33,9 @@
   html,body{margin:0;background:var(--bg);color:var(--ink);
     font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;-webkit-text-size-adjust:100%}
   .wrap{display:flex;gap:20px;padding:18px;align-items:flex-start;flex-wrap:wrap;justify-content:center;max-width:1500px;margin:0 auto;}
-  h1{font-size:15px;font-weight:600;letter-spacing:.3px;margin:0 0 2px;}
-  .sub{font-size:12px;color:#8b97a6;margin-bottom:12px}
-  .session{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap}
-  .session button{font-size:12px;font-weight:600;padding:7px 12px;border-radius:8px;border:1px solid #2f6db5;background:#16263a;color:#cfe3ff;cursor:pointer}
-  .session button:hover{background:#1b3148}
-  .session .dot{width:9px;height:9px;border-radius:50%;background:#5a6573;flex:0 0 auto}
-  .session .dot.on{background:#3ddc7e;box-shadow:0 0 7px #3ddc7e}
-  .session .st{font-size:11px;color:#8b97a6}
-  .badge{font-size:11px;font-weight:800;letter-spacing:1px;color:#cfe3ff;background:#16263a;border:1px solid #2f6db5;padding:6px 11px;border-radius:7px}
-  .session input{font-size:11px;padding:6px 9px;border-radius:7px;border:1px solid #2a333d;background:#0d1117;color:#e6edf3;width:230px}
+  .badge{font-size:var(--font-sm);font-weight:var(--fw-heavy);letter-spacing:1px;color:#cfe3ff;background:#16263a;border:1px solid #2f6db5;padding:var(--space-2) var(--space-3);border-radius:var(--radius-sm)}
+  /* generic "linked" indicator dot — used by the sync/remote status dots in the session & pairing card */
+  .dot.on{background:#3ddc7e;box-shadow:0 0 7px #3ddc7e}
 
   /* ===== DEVICE (tall, slender — true 5392 proportions) ===== */
   .device{width:300px;background:linear-gradient(158deg,var(--body1),var(--body2) 70%);
@@ -154,16 +147,17 @@
   .wirepick button{font-size:12px;padding:7px 12px;border-radius:8px;border:1px solid #2a333d;background:#161c24;color:#dbe3ec;cursor:pointer}
   .wirepick button.act{border-color:#3b82f6;background:#16263a;color:#cfe3ff}
 
-  /* ===== MONITOR ===== */
-  .monitor{background:#05060a;border:1px solid #1a1f27;border-radius:14px;padding:12px 14px;width:580px;flex:1 1 480px;min-width:340px}
-  .mhead{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}
-  .mhead .lead{color:#37e06a;font-weight:700;font-size:13px}
-  .mhead .hr{color:#37e06a;font-size:13px}.mhead .hr b{font-size:27px}
-  canvas#ecg{display:block;width:100%;background:#04120a;border-radius:8px}
-  .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:#9fb0a6;margin-top:8px}
-  .legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
-  .annun{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;min-height:8px}
-  .tag{font-size:10.5px;font-weight:800;padding:3px 8px;border-radius:5px;background:#11161d;border:1px solid #232b34;color:#9fb0a6}
+  /* ===== MONITOR (rhythm-strip framing) ===== */
+  .monitor{background:#05060a;border:1px solid #1a1f27;border-radius:var(--radius-lg);padding:var(--space-4) var(--space-5);
+    width:580px;flex:1 1 480px;min-width:340px;box-shadow:0 10px 30px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.02)}
+  .mhead{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:var(--space-3)}
+  .mhead .lead{color:#37e06a;font-weight:var(--fw-bold);font-size:var(--font-md);text-transform:uppercase;letter-spacing:.6px}
+  .mhead .hr{color:#37e06a;font-size:var(--font-md);letter-spacing:.2px}.mhead .hr b{font-size:27px;font-weight:var(--fw-heavy)}
+  canvas#ecg{display:block;width:100%;background:#04120a;border-radius:var(--radius-sm)}
+  .legend{display:flex;gap:var(--space-4);flex-wrap:wrap;font-size:var(--font-sm);color:#9fb0a6;margin-top:var(--space-3)}
+  .legend i{display:inline-block;width:10px;height:10px;border-radius:var(--radius-sm);margin-right:4px;vertical-align:-1px}
+  .annun{display:flex;gap:var(--space-2);flex-wrap:wrap;margin-top:var(--space-3);min-height:8px}
+  .tag{font-size:var(--font-xs);font-weight:var(--fw-heavy);letter-spacing:.2px;padding:4px var(--space-3);border-radius:var(--radius-sm);background:#11161d;border:1px solid #232b34;color:#9fb0a6}
   .tag.warn{background:#2a1410;border-color:#7a2a1e;color:#ff8a72}
   .tag.ok{background:#0f2417;border-color:#1f5e38;color:#5fe089}
   .tag.info{background:#0e1d2c;border-color:#22506f;color:#7fc4ff}
@@ -174,23 +168,26 @@
   .facpanel{position:fixed;left:0;right:0;bottom:0;top:auto;width:auto;max-width:none;height:284px;background:#0f141b;border-top:2px solid #2a3746;
     z-index:29;transition:height .18s ease;overflow:hidden;padding:0;box-shadow:0 -10px 34px rgba(0,0,0,.55);display:flex;flex-direction:column}
   .facpanel.collapsed{height:38px}
-  .facdockhead{display:flex;align-items:center;gap:14px;padding:0 14px;height:38px;background:#141b24;border-bottom:1px solid #222a33;flex:0 0 auto;user-select:none}
-  .facdocktitle{font-size:13px;font-weight:600;color:#e6edf3;white-space:nowrap}
-  .factabs{display:flex;gap:4px;flex:1 1 auto;overflow-x:auto}
-  .ftab{font-size:12.5px;padding:6px 12px;border-radius:7px;border:1px solid transparent;background:none;color:#8b97a6;cursor:pointer;white-space:nowrap}
+  .facdockhead{display:flex;align-items:center;gap:var(--space-4);padding:0 var(--space-4);height:38px;background:#141b24;border-bottom:1px solid #222a33;flex:0 0 auto;user-select:none}
+  .facdocktitle{font-size:var(--font-md);font-weight:var(--fw-semibold);color:var(--ink);white-space:nowrap}
+  .factabs{display:flex;gap:var(--space-1);flex:1 1 auto;overflow-x:auto}
+  .ftab{font-size:12.5px;padding:var(--space-2) var(--space-4);border-radius:var(--radius-sm);border:1px solid transparent;background:none;color:#8b97a6;cursor:pointer;white-space:nowrap;transition:color .15s ease,background .15s ease}
   .ftab:hover{color:#cbd5e1;background:#1a2230}
-  .ftab.on{color:#e6edf3;background:#1c2836;border-color:#2f6db5}
-  #facToggle{margin-left:auto;font-size:12.5px;color:#7fb4ff;font-weight:600;white-space:nowrap;cursor:pointer;flex:0 0 auto}
-  .facdockbody{display:flex;gap:14px;overflow-x:auto;overflow-y:hidden;padding:12px 14px;flex:1 1 auto;align-items:stretch}
+  .ftab.on{color:var(--ink);background:#1c2836;border-color:#2f6db5}
+  #facToggle{margin-left:auto;font-size:12.5px;color:#7fb4ff;font-weight:var(--fw-semibold);white-space:nowrap;cursor:pointer;flex:0 0 auto}
+  .facdockbody{display:flex;gap:var(--space-4);overflow-x:auto;overflow-y:hidden;padding:var(--space-4);flex:1 1 auto;align-items:stretch}
   .facpanel .fgrp{flex:1 1 300px;max-width:460px;margin:0;overflow-y:auto}
-  .fgrp{border:1px solid #222a33;border-radius:9px;padding:12px;background:#0c1118}
-  .fgrp h3{font-size:12px;font-weight:600;letter-spacing:0;text-transform:none;color:#9fb4c8;margin:0 0 10px}
-  .fgrp .note{font-size:11.5px;color:#8b97a6;margin:0 0 9px;line-height:1.45}
+  .fgrp{border:1px solid #222a33;border-radius:var(--radius-md);padding:var(--space-4);
+    background:linear-gradient(180deg,#10151d,#0c1118 60%);box-shadow:0 1px 0 rgba(255,255,255,.02) inset}
+  .fgrp h3{font-size:var(--font-xs);font-weight:var(--fw-bold);letter-spacing:.7px;text-transform:uppercase;color:#8fb0d6;margin:0 0 var(--space-3)}
+  .fgrp .note{font-size:var(--font-sm);color:#8b97a6;margin:0 0 var(--space-3);line-height:1.5}
+  .note-top{margin-top:var(--space-3)}
   /* ===== facilitator DASHBOARD: device = left column top-to-bottom; right = strip (top 1/3) + controls (bottom 2/3) ===== */
-  .dashtop{padding:8px 16px;display:flex;align-items:baseline;gap:12px;border-bottom:1px solid #1a2230}
-  .dashtitle{font-size:15px;font-weight:600;color:#e6edf3}
-  .dashsub{font-size:12px;color:#8b97a6}
-  .sbtn{font-size:12px;font-weight:600;padding:7px 10px;border-radius:8px;border:1px solid #2f6db5;background:#16263a;color:#cfe3ff;cursor:pointer}
+  .dashtop{padding:var(--space-3) var(--space-5);display:flex;align-items:baseline;gap:var(--space-4);border-bottom:1px solid #1a2230}
+  .dashtitle{font-size:var(--font-lg);font-weight:var(--fw-bold);color:var(--ink);letter-spacing:.2px}
+  .dashsub{font-size:var(--font-base);color:#8b97a6}
+  .sbtn{font-size:var(--font-base);font-weight:var(--fw-semibold);padding:var(--space-3) var(--space-4);border-radius:var(--radius-md);
+    border:1px solid #2f6db5;background:#16263a;color:#cfe3ff;cursor:pointer;transition:background .15s ease}
   .sbtn:hover{background:#1b3148}
   body.dashview{padding-bottom:0 !important;overflow:hidden}
   body.dashview .wrap{display:grid;grid-template-columns:minmax(240px,24%) 1fr;grid-template-rows:34% 66%;
@@ -205,22 +202,29 @@
   body.dashview .facdockbody{display:grid;grid-template-columns:repeat(auto-fill,minmax(232px,1fr));gap:10px;overflow-y:auto;overflow-x:hidden;padding:0 2px 8px 0;align-items:stretch;min-height:0}
   body.dashview .facpanel .fgrp{flex:none;min-width:0;max-width:100%;overflow:hidden}
   body.learnerview .facpanel{display:none}
-  body.learnerview .dashtop{border-bottom:none;padding:6px 16px}
-  .scn{display:grid;grid-template-columns:1fr 1fr;gap:6px}
-  .scn button{font-size:12px;padding:8px 8px;border-radius:8px;border:1px solid #2a333d;background:#161c24;color:#dbe3ec;cursor:pointer;text-align:left;line-height:1.25;touch-action:manipulation}
+  body.learnerview .dashtop{border-bottom:none;padding:var(--space-2) var(--space-5)}
+  /* Prev/Next/Reset row for the CT-surgery stepped scenarios */
+  .scn{display:flex;gap:var(--space-2);margin-top:var(--space-2)}
+  .scn button{flex:1;font-size:var(--font-base);padding:var(--space-3);border-radius:var(--radius-md);border:1px solid #2a333d;
+    background:#161c24;color:#dbe3ec;cursor:pointer;text-align:center;line-height:1.25;touch-action:manipulation;transition:background .15s ease,border-color .15s ease}
   .scn button:hover{border-color:#3b82f6;background:#18222e}
   /* stacked fields: label on its own line, control full-width beneath — keeps everything inside the card */
-  .frow{display:flex;flex-wrap:wrap;align-items:center;gap:5px 8px;margin:9px 0;min-width:0}
-  .frow label{font-size:12px;color:#c7d0da;flex:1 1 100%;min-width:0}
-  .frow input[type=range]{flex:1 1 60px;min-width:0;width:auto}
-  .frow .v{font-size:12px;color:#7fb4ff;flex:0 0 auto;min-width:40px;text-align:right;font-variant-numeric:tabular-nums}
-  .frow select{flex:1 1 100%;min-width:0;max-width:100%;background:#161c24;color:#e6edf3;border:1px solid #2a333d;border-radius:6px;padding:6px;font-size:12px}
+  .frow{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2) var(--space-3);margin:var(--space-4) 0;min-width:0}
+  .frow label{font-size:var(--font-base);font-weight:var(--fw-semibold);color:#c7d0da;flex:1 1 100%;min-width:0}
+  .frow input[type=range]{flex:1 1 60px;min-width:0;width:auto;accent-color:#3b82f6}
+  .frow .v{font-size:var(--font-base);font-weight:var(--fw-semibold);color:#7fb4ff;flex:0 0 auto;min-width:40px;text-align:right;font-variant-numeric:tabular-nums}
+  .frow select{flex:1 1 100%;min-width:0;max-width:100%;background:#161c24;color:#e6edf3;border:1px solid #2a333d;border-radius:var(--radius-sm);padding:var(--space-2);font-size:var(--font-base)}
+  .fgrp>select,#relayUrl{width:100%;box-sizing:border-box;background:#161c24;color:#e6edf3;border:1px solid #2a333d;border-radius:var(--radius-sm);padding:var(--space-2);font-size:var(--font-base)}
+  #relayUrl{margin-top:var(--space-2)}
   .fgrp input,.fgrp select{box-sizing:border-box}
   .fgrp .note{overflow-wrap:anywhere}
-  .chk{display:flex;align-items:center;gap:8px;font-size:11.5px;color:#c7d0da;margin:7px 0;cursor:pointer}
-  .chk input{width:16px;height:16px}
+  .chk{display:flex;align-items:center;gap:var(--space-3);font-size:var(--font-sm);color:#c7d0da;margin:var(--space-2) 0;cursor:pointer}
+  .chk input{width:16px;height:16px;accent-color:#3b82f6}
   .closex{position:absolute;top:12px;right:14px;cursor:pointer;color:#8b97a6;font-size:18px}
-  .hintbox{font-size:11px;color:#9fb0a6;background:#0c1118;border:1px solid #222a33;border-radius:8px;padding:9px;margin-top:6px;line-height:1.45}
+  /* coaching / hint callouts (device-off prompt, scenario notes, stepped-CT progress) get a left accent
+     stripe so they read as guidance rather than plain body copy */
+  .hintbox{font-size:var(--font-sm);color:#a9b8c2;background:#0c1118;border:1px solid #222a33;border-left:3px solid #2f6db5;
+    border-radius:var(--radius-sm);padding:var(--space-3) var(--space-3) var(--space-3) var(--space-4);margin-top:var(--space-2);line-height:1.5}
   optgroup{color:#8b97a6}
 </style>
 </head>
@@ -357,16 +361,16 @@
 
   <div class="fgrp" data-tab="session">
     <h3>Session &amp; sharing</h3>
-    <div class="frow" style="justify-content:flex-start;gap:8px"><button class="sbtn" id="launcher">⧉ Open learner display</button><span class="dot" id="syncDot"></span></div>
+    <div class="frow"><button class="sbtn" id="launcher">⧉ Open learner display</button><span class="dot" id="syncDot"></span></div>
     <div class="note" id="syncSt">Same computer: open a learner display for a synced two-screen session.</div>
-    <div class="frow" style="justify-content:flex-start;gap:8px;margin-top:6px"><button class="sbtn" id="remoteBtn">🌐 Start remote session</button><button class="sbtn" id="copyLink" style="display:none">Copy learner link</button><span class="dot" id="remoteDot"></span></div>
-    <input id="relayUrl" placeholder="wss://your-relay.onrender.com" style="width:100%;margin-top:6px" />
+    <div class="frow"><button class="sbtn" id="remoteBtn">🌐 Start remote session</button><button class="sbtn" id="copyLink" style="display:none">Copy learner link</button><span class="dot" id="remoteDot"></span></div>
+    <input id="relayUrl" placeholder="wss://your-relay.onrender.com" />
     <div class="note" id="remoteSt">Different devices: paste your relay URL, then Start — share the learner link.</div>
   </div>
 
   <div class="fgrp" data-tab="scenarios">
     <h3>Quick scenarios</h3>
-    <select id="quickScn" style="width:100%">
+    <select id="quickScn">
       <option value="">— load a scenario —</option>
       <optgroup label="Rhythms">
         <option value="chb">3° AV block + slow escape (default)</option>
@@ -396,7 +400,7 @@
         <option value="threshtest">Threshold-test setup (VVI)</option>
       </optgroup>
     </select>
-    <div class="note" style="margin-top:8px">Loads rhythm, thresholds, and faults in one step. Then adjust the device to manage it.</div>
+    <div class="note note-top">Loads rhythm, thresholds, and faults in one step. Then adjust the device to manage it.</div>
   </div>
 
   <div class="fgrp" id="ctScnGrp" data-tab="scenarios">
@@ -410,10 +414,10 @@
         <option value="pod0_paced">SCE 2 · POD0 AV-paced baseline</option>
       </select>
     </div>
-    <div class="scn" style="display:flex;gap:6px;margin-top:6px;">
-      <button id="ctPrev" style="flex:1">‹ Prev</button>
-      <button id="ctNext" style="flex:1">Next ›</button>
-      <button id="ctReset" style="flex:1">Reset</button>
+    <div class="scn">
+      <button id="ctPrev">‹ Prev</button>
+      <button id="ctNext">Next ›</button>
+      <button id="ctReset">Reset</button>
     </div>
     <div class="hintbox" id="ctStep">No CT scenario loaded.</div>
   </div>
