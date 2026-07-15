@@ -222,6 +222,14 @@
     background:#161c24;color:#dbe3ec;cursor:pointer;text-align:left;line-height:1.3;touch-action:manipulation;transition:background .15s ease,border-color .15s ease}
   .faultbtn:hover{border-color:#3b82f6;background:#18222e}
   .faultbtn.act{border-color:#7a2a1e;background:#2a1410;color:#ff8a72}
+  /* debrief & event log */
+  .debrieflog{max-height:220px;overflow-y:auto;border:1px solid #222a33;border-radius:var(--radius-sm);background:#0c1118;padding:var(--space-2);margin-top:var(--space-2)}
+  .debrieflog .ev{display:flex;gap:var(--space-3);padding:3px 0;font-size:var(--font-sm);border-bottom:1px solid #171c24;align-items:baseline}
+  .debrieflog .ev:last-child{border-bottom:none}
+  .debrieflog .ev .t{color:#7c93ad;font-variant-numeric:tabular-nums;flex:0 0 auto;font-family:"DejaVu Sans Mono",Menlo,Consolas,monospace}
+  .debrieflog .ev .m{color:#c7d0da;flex:1 1 auto;min-width:0;overflow-wrap:anywhere}
+  .debrieflog .ev.warn .m{color:#ff8a72}
+  .debrieflog .ev.ok .m{color:#5fe089}
   /* stacked fields: label on its own line, control full-width beneath — keeps everything inside the card */
   .frow{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2) var(--space-3);margin:var(--space-4) 0;min-width:0}
   .frow label{font-size:var(--font-base);font-weight:var(--fw-semibold);color:#c7d0da;flex:1 1 100%;min-width:0}
@@ -368,6 +376,7 @@
       <button class="ftab" data-tab="thresholds">Thresholds &amp; sensing</button>
       <button class="ftab" data-tab="faults">Faults &amp; leads</button>
       <button class="ftab" data-tab="notify">Notifications</button>
+      <button class="ftab" data-tab="debrief">Debrief</button>
     </div>
     <span id="facToggle">▾ Hide</span>
   </div>
@@ -535,6 +544,17 @@
       <label class="chk"><input type="checkbox" id="n-ok" checked> "Pacing OK" reassurance flag</label>
     </div>
     <div class="hintbox">Validation mode strips all interpretive flags so you can assess whether the learner recognizes the problem unaided. The HR readout always stays visible.</div>
+  </div>
+
+  <div class="fgrp" data-tab="debrief">
+    <h3>Debrief &amp; event log</h3>
+    <div class="note">Timestamped timeline of device changes, injected faults, and capture/sense outcomes — the ground truth regardless of the current notification mode.</div>
+    <div class="debrieflog" id="debriefLog"><div class="note">No events yet.</div></div>
+    <div class="frow">
+      <button class="sbtn" id="debriefCopy">Copy log</button>
+      <button class="sbtn" id="debriefDownload">Download .txt</button>
+      <button class="sbtn" id="debriefClear">Clear</button>
+    </div>
   </div>
   </div><!-- /facdockbody -->
 </div><!-- /facpanel -->
@@ -900,7 +920,7 @@ function powerOn(){ S.power=true;S.locked=false;S.paused=false; applyMode('DDD')
   setTimeout(()=>{ if(S.power)coach(modeCoach('DDD')); },SELFTEST_MS+100); }
 function powerOff(){ S.power=false;S.paused=false;avActive=false; $('upperLcd').className='lcd off'; $('lowerLcd').className='lcd off lower';
   waves=[];pendingConduction=[];pendingPVC=0; closeStepper(); coach('Device off. All pacing stopped. Press power to restart.'); }
-function coach(t){ $('coach').innerHTML=t; }
+function coach(t){ $('coach').innerHTML=t; logEvent('action',t); }
 
 /* ========= KNOBS + STEPPER ========= */
 const KNOBS={
@@ -1098,32 +1118,38 @@ function applyNotifyUI(){ $('f-notify').value=N.mode; $('notifyCustom').style.di
 
 /* ========= ANNUNCIATORS ========= */
 function showCat(cat){ if(N.mode==='validation')return false; if(N.mode==='training')return true; return N[cat]; }
+/* Ground-truth clinical conditions, independent of the notification/visibility mode. Split out of
+   updateAnnun() (below) so the debrief log can see true onset/resolution of a condition even in
+   Validation mode, where the learner's on-screen annunciator is hiding it. cat:null mirrors the
+   one case (PACING SUSPENDED) that was never gated by showCat() in the original — kept ungated
+   here too so the debrief always logs pause/resume regardless of notification mode. */
+function computeAnnunConditions(){
+  const conds=[];
+  if(!(S.power&&T>=S.selfTestUntil)) return conds;
+  const f=MODES[S.mode];
+  if(f.pV&&S.vOut>0&&P.leadV&&P.batt!=='depleted'&&S.vOut<P.vThr) conds.push({cat:'capture',text:'LOSS OF V CAPTURE',sev:'warn'});
+  if(f.pA&&S.aOut>0&&P.leadA&&P.batt!=='depleted'&&S.aOut<P.aThr) conds.push({cat:'capture',text:'LOSS OF A CAPTURE',sev:'warn'});
+  if(f.pA&&!aConnected()) conds.push({cat:'lead',text:'A NOT CONNECTED',sev:'warn'});
+  if(f.pV&&!vConnected()) conds.push({cat:'lead',text:'V NOT CONNECTED',sev:'warn'});
+  if(f.pV&&vConnected()&&!P.leadV) conds.push({cat:'lead',text:'V LEAD / NO OUTPUT',sev:'warn'});
+  if(f.pA&&aConnected()&&!P.leadA) conds.push({cat:'lead',text:'A LEAD / NO OUTPUT',sev:'warn'});
+  if(P.oversV||P.oversA) conds.push({cat:'sensing',text:'OVERSENSING',sev:'warn'});
+  if(f.sV&&vSensMv()!==Infinity&&vSensMv()>P.vSig&&hasIntrinsicV()) conds.push({cat:'sensing',text:'V UNDERSENSING',sev:'warn'});
+  if(f.sA&&aSensMv()!==Infinity&&aSensMv()>P.aSig&&hasIntrinsicA()) conds.push({cat:'sensing',text:'A UNDERSENSING',sev:'warn'});
+  if(P.batt==='low') conds.push({cat:'battery',text:'LOW BATTERY',sev:'warn'});
+  if(P.batt==='depleted') conds.push({cat:'battery',text:'BATTERY DEPLETED',sev:'warn'});
+  if(S.paused) conds.push({cat:null,text:'PACING SUSPENDED',sev:'info'});
+  if(currentHR()>0&&currentHR()<30&&!S.paused) conds.push({cat:'rhythm',text:'SEVERE BRADY / ASYSTOLE',sev:'warn'});
+  if(P.rhythm==='vt') conds.push({cat:'rhythm',text:'WIDE-COMPLEX TACHYCARDIA',sev:'warn'});
+  return conds;
+}
 function updateAnnun(){
-  const box=$('annun'); const tags=[];
-  if(S.power&&T>=S.selfTestUntil){
-    const f=MODES[S.mode];
-    if(showCat('capture')){
-      if(f.pV&&S.vOut>0&&P.leadV&&P.batt!=='depleted'&&S.vOut<P.vThr) tags.push(['LOSS OF V CAPTURE','warn']);
-      if(f.pA&&S.aOut>0&&P.leadA&&P.batt!=='depleted'&&S.aOut<P.aThr) tags.push(['LOSS OF A CAPTURE','warn']);
-    }
-    if(showCat('lead')){
-      if(f.pA&&!aConnected()) tags.push(['A NOT CONNECTED','warn']);
-      if(f.pV&&!vConnected()) tags.push(['V NOT CONNECTED','warn']);
-      if(f.pV&&vConnected()&&!P.leadV) tags.push(['V LEAD / NO OUTPUT','warn']);
-      if(f.pA&&aConnected()&&!P.leadA) tags.push(['A LEAD / NO OUTPUT','warn']);
-    }
-    if(showCat('sensing')){
-      if(P.oversV||P.oversA) tags.push(['OVERSENSING','warn']);
-      if(f.sV&&vSensMv()!==Infinity&&vSensMv()>P.vSig&&hasIntrinsicV()) tags.push(['V UNDERSENSING','warn']);
-      if(f.sA&&aSensMv()!==Infinity&&aSensMv()>P.aSig&&hasIntrinsicA()) tags.push(['A UNDERSENSING','warn']);
-    }
-    if(showCat('battery')){ if(P.batt==='low')tags.push(['LOW BATTERY','warn']); if(P.batt==='depleted')tags.push(['BATTERY DEPLETED','warn']); }
-    if(S.paused) tags.push(['PACING SUSPENDED','info']);
-    if(showCat('rhythm')){ if(currentHR()>0&&currentHR()<30&&!S.paused) tags.push(['SEVERE BRADY / ASYSTOLE','warn']);
-      if(P.rhythm==='vt') tags.push(['WIDE-COMPLEX TACHYCARDIA','warn']); }
-    if(showCat('ok')&&!tags.some(t=>t[1]==='warn')&&!S.paused) tags.push(['PACING OK','ok']);
-  }
+  const box=$('annun');
+  const all=computeAnnunConditions();
+  const tags=all.filter(c=>c.cat===null||showCat(c.cat)).map(c=>[c.text,c.sev]);
+  if(S.power&&T>=S.selfTestUntil&&showCat('ok')&&!tags.some(t=>t[1]==='warn')&&!S.paused) tags.push(['PACING OK','ok']);
   box.innerHTML=tags.map(t=>`<span class="tag ${t[1]}">${t[0]}</span>`).join('');
+  logAnnunChanges(all);
 }
 function hasIntrinsicV(){ return ['sinus','sbrady','stach','avb1','mobitz1','mobitz2','chb','junctional','accel_junctional','idioventricular','aivr','vt','pvc','aflutter','afib'].includes(P.rhythm) && currentHR()>0; }
 function hasIntrinsicA(){ return ['sinus','sbrady','stach','avb1','mobitz1','mobitz2','chb','pvc'].includes(P.rhythm)&&P.aRate>0; }
@@ -1317,6 +1343,82 @@ function syncFaultLib(){
   FAULT_LIB.forEach(f=>{ const btn=$('flt-'+f.id); if(btn) btn.classList.toggle('act',!!f.active()); });
 }
 document.querySelectorAll('.faultbtn[data-fault]').forEach(b=>b.onclick=()=>applyFault(b.dataset.fault));
+
+/* ========= DEBRIEF & EVENT LOG =========
+   A timestamped timeline of learner device changes, injected faults, and resulting capture/sense
+   outcomes, for a facilitator-side debrief. Three feeds, chosen to avoid touching clinical logic
+   or instrumenting dozens of individual call sites:
+     1. coach() is wrapped (above) to log every narrative message the facilitator/learner already
+        sees (scenario loads, fault injections, mode changes, DOO, pause/RAP, power on/off) — one
+        call site, reused verbatim, nothing re-typed.
+     2. A slow poll diffs the handful of device/patient fields that change WITHOUT a coach()
+        message (knob turns, manual fault checkboxes, connection-modal clicks).
+     3. computeAnnunConditions() (above) is diffed every frame for onset/resolution of each named
+        clinical outcome — using the ground-truth (unfiltered) list, so Validation-mode sessions
+        still produce a true timeline even though the learner's screen shows nothing. */
+const EVENT_LOG=[];
+const sessionStartT=Date.now();
+function fmtElapsed(ms){ const s=Math.max(0,Math.floor(ms/1000)); const mm=String(Math.floor(s/60)).padStart(2,'0'), ss=String(s%60).padStart(2,'0'); return mm+':'+ss; }
+function escHtml(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function logEvent(cat,message,sev){
+  EVENT_LOG.push({t:Date.now(),cat,message,sev:sev||''});
+  if(EVENT_LOG.length>500) EVENT_LOG.shift();
+  renderDebriefLog();
+}
+function renderDebriefLog(){
+  const box=$('debriefLog'); if(!box) return;
+  if(!EVENT_LOG.length){ box.innerHTML='<div class="note">No events yet.</div>'; return; }
+  box.innerHTML=EVENT_LOG.map(e=>'<div class="ev'+(e.sev?' '+e.sev:'')+'"><span class="t">'+fmtElapsed(e.t-sessionStartT)+'</span><span class="m">'+escHtml(e.message)+'</span></div>').join('');
+  box.scrollTop=box.scrollHeight;
+}
+function debriefText(){ return EVENT_LOG.map(e=>'['+fmtElapsed(e.t-sessionStartT)+'] '+e.message).join('\n')||'No events yet.'; }
+
+let lastAnnunKeys=new Set();
+function logAnnunChanges(all){
+  const nowMap=new Map(all.map(c=>[c.text,c.sev]));
+  nowMap.forEach((sev,text)=>{ if(!lastAnnunKeys.has(text)) logEvent('outcome',text+' — onset',sev); });
+  lastAnnunKeys.forEach(text=>{ if(!nowMap.has(text)) logEvent('outcome',text+' — resolved','ok'); });
+  lastAnnunKeys=new Set(nowMap.keys());
+}
+
+/* fields that change without going through coach() — knob turns, manual fault checkboxes/
+   sliders, connections-modal clicks */
+const LOG_POLL_MS=300;
+const LOGGABLE_LABELS={
+  rate:v=>'Rate set to '+v+' ppm',
+  aOut:v=>'A Output set to '+fmt1(v)+' mA',
+  vOut:v=>'V Output set to '+fmt1(v)+' mA',
+  rhythm:v=>'Underlying rhythm set to '+v,
+  leadA:v=>v?'Atrial lead intact':'Atrial lead fractured',
+  leadV:v=>v?'Ventricular lead intact':'Ventricular lead fractured',
+  oversA:v=>v?'Atrial oversensing enabled':'Atrial oversensing cleared',
+  oversV:v=>v?'Ventricular oversensing enabled':'Ventricular oversensing cleared',
+  batt:v=>'Battery set to '+v,
+  aGen:v=>v?'Atrial cable connected (generator)':'Atrial cable disconnected (generator)',
+  vGen:v=>v?'Ventricular cable connected (generator)':'Ventricular cable disconnected (generator)',
+  aLead:v=>v?'Atrial heart wire connected':'Atrial heart wire disconnected',
+  vLead:v=>v?'Ventricular heart wire connected':'Ventricular heart wire disconnected',
+};
+function snapshotLoggable(){
+  return { rate:S.rate,aOut:S.aOut,vOut:S.vOut,rhythm:P.rhythm,leadA:P.leadA,leadV:P.leadV,
+    oversA:P.oversA,oversV:P.oversV,batt:P.batt,aGen:conn.aGen,vGen:conn.vGen,aLead:conn.aLead,vLead:conn.vLead };
+}
+let lastLoggableSnap=null;
+function checkLoggableChanges(){
+  const snap=snapshotLoggable();
+  if(lastLoggableSnap){ Object.keys(snap).forEach(k=>{ if(snap[k]!==lastLoggableSnap[k]) logEvent('device',LOGGABLE_LABELS[k](snap[k])); }); }
+  lastLoggableSnap=snap;
+}
+setInterval(checkLoggableChanges,LOG_POLL_MS);
+
+const _debriefCopy=$('debriefCopy'); if(_debriefCopy) _debriefCopy.onclick=()=>{ try{ navigator.clipboard.writeText(debriefText()); }catch(e){} coach('Debrief log copied to clipboard.'); };
+const _debriefDownload=$('debriefDownload'); if(_debriefDownload) _debriefDownload.onclick=()=>{
+  const blob=new Blob([debriefText()],{type:'text/plain'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a'); a.href=url; a.download='5392-debrief.txt';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+};
+const _debriefClear=$('debriefClear'); if(_debriefClear) _debriefClear.onclick=()=>{ EVENT_LOG.length=0; renderDebriefLog(); };
 
 /* ========= QR CODE (inlined helper — ISO/IEC 18004, byte-mode only) =========
    Renders the learner link as a scannable code for the two-device pairing flow.
