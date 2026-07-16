@@ -12,7 +12,7 @@
      surrounding-surface polish pass. The 5392 faceplate itself stays hand-tuned pixel values,
      not tokenized, so its proportions never drift from the real device. */
   :root{
-    --bg:#0d1117; --ink:#e6edf3;
+    --bg:#faf8f5; --ink:#e6edf3;
     --body1:#30353d; --body2:#181c22; --bezel:#0a0c10;
     --lcd:#cdc7a3; --lcd2:#b6b086; --lcdink:#15160d;
     --grn:#3ddc7e; --blu:#54b6ff; --ylw:#e8c84b; --red:#d9433b; --metal:#9aa3ad;
@@ -223,8 +223,12 @@
   body.dashview .monitor .hintbox{margin-top:6px}
   body.dashview .facpanel{grid-area:controls;position:static;height:auto;max-width:none;margin:0;padding:0;background:transparent;border-top:none;box-shadow:none;display:flex;flex-direction:column;min-height:0}
   body.dashview .facdockhead{display:none}
-  body.dashview .facdockbody{display:grid;grid-template-columns:repeat(auto-fill,minmax(232px,1fr));gap:10px;overflow-y:auto;overflow-x:hidden;padding:0 2px 8px 0;align-items:stretch;min-height:0}
-  body.dashview .facpanel .fgrp{flex:none;min-width:0;max-width:100%;overflow:hidden}
+  /* fixed row height so every card is a consistent, independently-scrollable box rather than
+     clipping or growing to whatever its tallest row-mate needs */
+  body.dashview .facdockbody{display:grid;grid-template-columns:repeat(auto-fill,minmax(232px,1fr));
+    grid-auto-rows:250px;gap:10px;overflow-y:auto;overflow-x:hidden;padding:0 2px 8px 0;align-items:stretch;min-height:0}
+  body.dashview .facpanel .fgrp{flex:none;min-width:0;max-width:100%;overflow-y:auto;overflow-x:hidden;position:relative}
+  body.dashview .facpanel .fgrp h3{position:sticky;top:0;background:#10151d;z-index:1}
   body.learnerview .facpanel{display:none}
   body.learnerview .dashtop{border-bottom:none;padding:var(--space-2) var(--space-5)}
   /* Prev/Next/Reset row for the stepped scenarios in the scenario library */
