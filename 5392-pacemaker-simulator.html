@@ -17,6 +17,9 @@
     --lcd:#cdc7a3; --lcd2:#b6b086; --lcdink:#15160d;
     --grn:#3ddc7e; --blu:#54b6ff; --ylw:#e8c84b; --red:#d9433b; --metal:#9aa3ad;
     --trace:#37e06a; --spikeA:#5db4ff; --spikeV:#ffd24a;
+    /* institutional brand (header/surrounding chrome only — the device faceplate is never
+       restyled with these) */
+    --usc-cardinal:#990000; --usc-cardinal-dark:#7a0000; --usc-gold:#ffcc00;
 
     /* spacing scale (px) */
     --space-1:4px; --space-2:6px; --space-3:8px; --space-4:12px; --space-5:16px; --space-6:20px;
@@ -191,9 +194,15 @@
   .fgrp .note{font-size:var(--font-sm);color:#8b97a6;margin:0 0 var(--space-3);line-height:1.5}
   .note-top{margin-top:var(--space-3)}
   /* ===== facilitator DASHBOARD: device = left column top-to-bottom; right = strip (top 1/3) + controls (bottom 2/3) ===== */
-  .dashtop{padding:var(--space-3) var(--space-5);display:flex;align-items:baseline;gap:var(--space-4);border-bottom:1px solid #1a2230}
-  .dashtitle{font-size:var(--font-lg);font-weight:var(--fw-bold);color:var(--ink);letter-spacing:.2px}
-  .dashsub{font-size:var(--font-base);color:#8b97a6}
+  /* institutional-branded header bar — surrounding chrome, matches the sibling sims' shell */
+  .dashtop{padding:var(--space-3) var(--space-5);display:flex;align-items:center;gap:var(--space-4);
+    background:linear-gradient(180deg,var(--usc-cardinal),var(--usc-cardinal-dark));border-bottom:2px solid var(--usc-gold)}
+  .brandmark{flex:0 0 auto;width:34px;height:34px;border-radius:var(--radius-sm);background:var(--usc-cardinal-dark);
+    border:1.5px solid var(--usc-gold);color:var(--usc-gold);font-size:var(--font-sm);font-weight:var(--fw-heavy);
+    letter-spacing:.3px;display:flex;align-items:center;justify-content:center}
+  .dashtitles{display:flex;flex-direction:column;gap:1px;min-width:0}
+  .dashtitle{font-size:var(--font-lg);font-weight:var(--fw-bold);color:#fff;letter-spacing:.2px}
+  .dashsub{font-size:var(--font-sm);color:#f3cccc}
   .sbtn{font-size:var(--font-base);font-weight:var(--fw-semibold);padding:var(--space-3) var(--space-4);border-radius:var(--radius-md);
     border:1px solid #2f6db5;background:#16263a;color:#cfe3ff;cursor:pointer;transition:background .15s ease}
   .sbtn:hover{background:#1b3148}
@@ -206,7 +215,7 @@
   .paircode{font-family:"DejaVu Sans Mono",Menlo,Consolas,monospace;font-size:20px;font-weight:var(--fw-bold);letter-spacing:3px;color:var(--ink)}
   body.dashview{padding-bottom:0 !important;overflow:hidden}
   body.dashview .wrap{display:grid;grid-template-columns:minmax(240px,24%) 1fr;grid-template-rows:34% 66%;
-    grid-template-areas:"device monitor" "device controls";gap:12px;height:calc(100vh - 44px);max-width:none;margin:0;padding:10px 14px 0;align-items:stretch}
+    grid-template-areas:"device monitor" "device controls";gap:12px;height:calc(100vh - 52px);max-width:none;margin:0;padding:10px 14px 0;align-items:stretch}
   body.dashview .device{grid-area:device;zoom:.8;align-self:start;justify-self:center}
   body.dashview .monitor{grid-area:monitor;display:flex;flex-direction:column;min-height:0;overflow:hidden;width:auto;flex:none}
   body.dashview .monitor #ecg{width:100%;height:clamp(150px,22vh,260px)}
@@ -274,8 +283,11 @@
 </head>
 <body>
 <div class="dashtop" id="dashTop">
-  <span class="dashtitle">Medtronic Model 5392 — Dual Chamber Temporary Pacemaker</span>
-  <span class="dashsub">Interactive trainer · CTICU education</span>
+  <span class="brandmark" aria-hidden="true">USC</span>
+  <div class="dashtitles">
+    <span class="dashtitle">Medtronic Model 5392 — Dual Chamber Temporary Pacemaker</span>
+    <span class="dashsub">Interactive trainer · CTICU education</span>
+  </div>
 </div>
 <div class="wrap">
     <div class="device" id="device">
@@ -1893,7 +1905,8 @@ function applyRole(){
   if(ROLE==='learner'){
     document.body.classList.add('learnerview');
     const fp=$('facPanel'),ft=$('facTab'); if(fp)fp.style.display='none'; if(ft)ft.style.display='none';
-    const dt=$('dashTop'); if(dt) dt.innerHTML='<span class="badge">● LEARNER VIEW — <span id="learnerConn">standby</span></span>';
+    const dt=$('dashTop'); const dtTitles=dt&&dt.querySelector('.dashtitles');
+    if(dtTitles) dtTitles.innerHTML='<span class="badge">● LEARNER VIEW — <span id="learnerConn">standby</span></span>';
     document.title='5392 — Learner Display';
     if(relay.url&&relay.code){ relayLog('Connecting to facilitator…'); connectRelay(); }
     else relayLog('Open the facilitator’s learner link on this device to connect.');
