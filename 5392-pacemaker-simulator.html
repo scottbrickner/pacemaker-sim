@@ -32,6 +32,11 @@
   *{box-sizing:border-box}
   html,body{margin:0;background:var(--bg);color:var(--ink);
     font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;-webkit-text-size-adjust:100%}
+  /* one consistent keyboard-focus ring for every native and custom (role=button) control */
+  :focus-visible{outline:2px solid #3b82f6;outline-offset:2px}
+  @media (prefers-reduced-motion:reduce){
+    *{transition-duration:.001ms!important;animation-duration:.001ms!important}
+  }
   .wrap{display:flex;gap:20px;padding:18px;align-items:flex-start;flex-wrap:wrap;justify-content:center;max-width:1500px;margin:0 auto;}
   .badge{font-size:var(--font-sm);font-weight:var(--fw-heavy);letter-spacing:1px;color:#cfe3ff;background:#16263a;border:1px solid #2f6db5;padding:var(--space-2) var(--space-3);border-radius:var(--radius-sm)}
   /* generic "linked" indicator dot — used by the sync/remote status dots in the session & pairing card */
@@ -45,6 +50,9 @@
   .connblock{display:flex;justify-content:center;gap:54px;margin:-30px 0 4px;}
   .socket{width:30px;height:30px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#d4dbe2,#6b7681 60%,#252b32);
     border:3px solid #0c0f13;box-shadow:0 2px 5px rgba(0,0,0,.7);position:relative;cursor:pointer;touch-action:manipulation}
+  /* invisible expanded tap target (≈44px) — the 54px gap between A/V sockets leaves room for this
+     without overlapping; visual socket size is untouched so the device stays photo-real */
+  .socket::before{content:"";position:absolute;inset:-7px}
   .socket span{position:absolute;bottom:-15px;left:50%;transform:translateX(-50%);font-size:10px;color:#aeb7c0;font-weight:700}
   .socket.a{outline:2px solid #2f6db5}
   .socket.v{outline:2px solid #e2e8ee}
@@ -248,6 +256,20 @@
   .hintbox{font-size:var(--font-sm);color:#a9b8c2;background:#0c1118;border:1px solid #222a33;border-left:3px solid #2f6db5;
     border-radius:var(--radius-sm);padding:var(--space-3) var(--space-3) var(--space-3) var(--space-4);margin-top:var(--space-2);line-height:1.5}
   optgroup{color:#8b97a6}
+
+  /* ===== RESPONSIVE (learner view: tablet portrait/landscape + projector full-screen) =====
+     The device's own pixel dimensions never change (photo-real guardrail); only spacing around it
+     and the monitor's minimum width flex. `zoom` mirrors the existing body.dashview .device rule
+     above, so this isn't a new technique for the file. */
+  @media (max-width:900px){
+    .wrap{gap:14px;padding:12px}
+    .monitor{min-width:300px}
+    body.dashview .wrap{grid-template-columns:minmax(200px,28%) 1fr}
+  }
+  @media (max-width:700px){
+    .device{zoom:.85}
+    .monitor{min-width:0;width:100%}
+  }
 </style>
 </head>
 <body>
@@ -258,12 +280,14 @@
 <div class="wrap">
     <div class="device" id="device">
       <div class="connblock">
-        <div class="socket a" id="sock-a" title="Atrial connection — click to inspect"><span class="conndot"></span><span>A</span></div>
-        <div class="socket v" id="sock-v" title="Ventricular connection — click to inspect"><span class="conndot"></span><span>V</span></div>
+        <div class="socket a" id="sock-a" title="Atrial connection — click to inspect" tabindex="0" role="button" aria-label="Atrial lead connection — open connections view">
+          <span class="conndot"></span><span>A</span></div>
+        <div class="socket v" id="sock-v" title="Ventricular connection — click to inspect" tabindex="0" role="button" aria-label="Ventricular lead connection — open connections view">
+          <span class="conndot"></span><span>V</span></div>
       </div>
       <div class="topbar">
-        <div class="doo" id="dooBtn" title="DOO emergency – high-output asynchronous pacing">⚠ DOO</div>
-        <div class="pwr" id="pwrBtn" title="On/Off">
+        <div class="doo" id="dooBtn" title="DOO emergency – high-output asynchronous pacing" tabindex="0" role="button" aria-label="DOO emergency: high-output asynchronous pacing">⚠ DOO</div>
+        <div class="pwr" id="pwrBtn" title="On/Off" tabindex="0" role="button" aria-label="Power on/off">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 3v9"/><path d="M6.6 6.6a8 8 0 1 0 10.8 0"/></svg>
         </div>
       </div>
@@ -282,15 +306,15 @@
               </div>
             </div>
             <div class="prow">
-              <canvas class="gauge" id="g-rate" width="100" height="64"></canvas>
+              <canvas class="gauge" id="g-rate" width="100" height="64" role="img" aria-label="Rate gauge"></canvas>
               <div class="pval"><div class="lbl">RATE</div><div class="num" id="v-rate">80</div><div class="unit">ppm</div></div>
             </div>
             <div class="prow">
-              <canvas class="gauge" id="g-aout" width="100" height="64"></canvas>
+              <canvas class="gauge" id="g-aout" width="100" height="64" role="img" aria-label="Atrial output gauge"></canvas>
               <div class="pval"><div class="lbl">A OUTPUT</div><div class="num" id="v-aout">10.0</div><div class="unit">mA</div></div>
             </div>
             <div class="prow">
-              <canvas class="gauge" id="g-vout" width="100" height="64"></canvas>
+              <canvas class="gauge" id="g-vout" width="100" height="64" role="img" aria-label="Ventricular output gauge"></canvas>
               <div class="pval"><div class="lbl">V OUTPUT</div><div class="num" id="v-vout">10.0</div><div class="unit">mA</div></div>
             </div>
             <div class="statusbar">
@@ -303,21 +327,21 @@
         </div>
 
         <div class="controls">
-          <div class="knob" id="k-rate" title="Rate"><div class="ind"></div></div>
+          <div class="knob" id="k-rate" title="Rate" tabindex="0" role="button" aria-label="Rate knob — open stepper"><div class="ind"></div></div>
           <div class="klabel">RATE</div>
-          <div class="knob" id="k-aout" title="A Output"><div class="ind"></div></div>
+          <div class="knob" id="k-aout" title="A Output" tabindex="0" role="button" aria-label="A Output knob — open stepper"><div class="ind"></div></div>
           <div class="klabel">A&nbsp;OUT</div>
-          <div class="knob" id="k-vout" title="V Output"><div class="ind"></div></div>
+          <div class="knob" id="k-vout" title="V Output" tabindex="0" role="button" aria-label="V Output knob — open stepper"><div class="ind"></div></div>
           <div class="klabel">V&nbsp;OUT</div>
-          <div class="key lock" id="lockBtn" title="Lock / Unlock">
+          <div class="key lock" id="lockBtn" title="Lock / Unlock" tabindex="0" role="button" aria-label="Lock or unlock device">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></div>
-          <div class="key enter" id="enterBtn" title="Enter / Select (hold for RAP)">
+          <div class="key enter" id="enterBtn" title="Enter / Select (hold for RAP)" tabindex="0" role="button" aria-label="Enter or select — hold for Rapid Atrial Pacing">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6v6a2 2 0 0 1-2 2H6"/><path d="M9 11l-4 3 4 3"/></svg></div>
-          <div class="key" id="upBtn" title="Up"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 7l6 8H6z"/></svg></div>
-          <div class="key" id="downBtn" title="Down"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 17l-6-8h12z"/></svg></div>
-          <div class="knob" id="k-menu" title="Menu / parameter dial"><div class="ind"></div></div>
+          <div class="key" id="upBtn" title="Up" tabindex="0" role="button" aria-label="Up"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 7l6 8H6z"/></svg></div>
+          <div class="key" id="downBtn" title="Down" tabindex="0" role="button" aria-label="Down"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 17l-6-8h12z"/></svg></div>
+          <div class="knob" id="k-menu" title="Menu / parameter dial" tabindex="0" role="button" aria-label="Menu parameter dial — open stepper"><div class="ind"></div></div>
           <div class="klabel">MENU</div>
-          <div class="key pause" id="pauseBtn" title="Pause (hold to suspend pacing ≤10s)">
+          <div class="key pause" id="pauseBtn" title="Pause (hold to suspend pacing ≤10s)" tabindex="0" role="button" aria-label="Pause — hold to suspend pacing for up to 10 seconds">
             <svg viewBox="0 0 24 24" fill="currentColor"><rect x="7" y="6" width="3.5" height="12"/><rect x="13.5" y="6" width="3.5" height="12"/></svg></div>
         </div>
       </div>
@@ -329,28 +353,28 @@
       <span class="lead">ECG · II</span>
       <span class="hr">HR <b id="hrNum">--</b> /min</span>
     </div>
-    <canvas id="ecg" width="1100" height="270"></canvas>
-    <div class="annun" id="annun"></div>
+    <canvas id="ecg" width="1100" height="270" role="img" aria-label="ECG waveform, lead II — heart rate and status are announced separately"></canvas>
+    <div class="annun" id="annun" role="status" aria-live="polite"></div>
     <div class="legend">
       <span><i style="background:var(--trace)"></i>ECG</span>
       <span><i style="background:var(--spikeA)"></i>Atrial pace spike</span>
       <span><i style="background:var(--spikeV)"></i>Ventricular pace spike</span>
     </div>
-    <div class="hintbox" id="coach">Press the green power button to begin. Note: the bridging cables are <b>not plugged into the generator</b> yet — click the A and V sockets on top of the device to connect them before pacing will work.</div>
+    <div class="hintbox" id="coach" role="status" aria-live="polite">Press the green power button to begin. Note: the bridging cables are <b>not plugged into the generator</b> yet — click the A and V sockets on top of the device to connect them before pacing will work.</div>
   </div>
 
 <div class="stepper" id="stepper">
-  <div class="sb" id="stepUp">▲</div>
+  <div class="sb" id="stepUp" tabindex="0" role="button" aria-label="Increase value">▲</div>
   <div class="sv"><div class="n" id="stepVal">0</div><div class="t" id="stepLbl">rate</div></div>
-  <div class="sb" id="stepDown">▼</div>
+  <div class="sb" id="stepDown" tabindex="0" role="button" aria-label="Decrease value">▼</div>
 </div>
 
 <div class="modal" id="connModal">
   <div class="modalbox">
-    <span class="closex" id="connClose">✕</span>
+    <span class="closex" id="connClose" tabindex="0" role="button" aria-label="Close">✕</span>
     <h2>Lead &amp; Cable Connections</h2>
     <div class="sub2">Trace the circuit: generator → <b>5492AL/5492VL patient cable</b> → <b>StreamLine epicardial heart wires</b> → myocardium. Tap any connection point (green = made, red = broken) to connect or disconnect. A broken link in a channel = no output and no sensing on that channel.</div>
-    <canvas class="conncanvas" id="connCanvas" width="660" height="430"></canvas>
+    <canvas class="conncanvas" id="connCanvas" width="660" height="430" role="img" aria-label="Lead and cable connections diagram — connection status is also read out below"></canvas>
     <div class="connlegend">
       <span><i style="background:#3ddc7e"></i>Connected</span>
       <span><i style="background:#d9433b"></i>Disconnected</span>
@@ -378,7 +402,7 @@
       <button class="ftab" data-tab="notify">Notifications</button>
       <button class="ftab" data-tab="debrief">Debrief</button>
     </div>
-    <span id="facToggle">▾ Hide</span>
+    <span id="facToggle" tabindex="0" role="button" aria-label="Show or hide facilitator controls">▾ Hide</span>
   </div>
   <div class="facdockbody" id="facBody">
 
@@ -828,12 +852,17 @@ function fmt1(n){return (Math.round(n*10)/10).toFixed(1);}
 function renderUpper(){
   $('v-rate').textContent=S.rate; $('v-aout').textContent=fmt1(S.aOut); $('v-vout').textContent=fmt1(S.vOut);
   gauge('g-rate',S.rate,RANGES.rate.min,RANGES.rate.max); gauge('g-aout',S.aOut,RANGES.aOut.min,RANGES.aOut.max); gauge('g-vout',S.vOut,RANGES.vOut.min,RANGES.vOut.max);
+  $('g-rate').setAttribute('aria-label','Rate gauge: '+S.rate+' pulses per minute');
+  $('g-aout').setAttribute('aria-label','Atrial output gauge: '+fmt1(S.aOut)+' milliamps');
+  $('g-vout').setAttribute('aria-label','Ventricular output gauge: '+fmt1(S.vOut)+' milliamps');
   $('modeInd').textContent=S.mode; $('lockInd').className='lockind'+(S.locked?' on':'');
   const bf=P.batt==='ok'?100:(P.batt==='low'?22:6);
   $('battFill').style.width=bf+'%'; $('battFill').style.background=P.batt==='ok'?'#15160d':'#9a2b22';
   setLed('led-ap','ap','pace'); setLed('led-as','as','sense'); setLed('led-vp','vp','pace'); setLed('led-vs','vs','sense');
   $('sock-a').className='socket a'+(aConnected()?'':' unplugged');
   $('sock-v').className='socket v'+(vConnected()?'':' unplugged');
+  $('sock-a').setAttribute('aria-label','Atrial lead connection — '+(aConnected()?'connected':'disconnected')+' — open connections view');
+  $('sock-v').setAttribute('aria-label','Ventricular lead connection — '+(vConnected()?'connected':'disconnected')+' — open connections view');
 }
 function setLed(el,k,kind){ $(el).className='dot '+kind+(((T-led[k])<150)?' on':''); }
 
@@ -942,6 +971,7 @@ function knobStep(id,d){ KNOBS[id].step(d); if(id==='k-menu') menuSpin+=d; buzz(
 function attachKnob(id){
   const el=$(id);
   el.addEventListener('click',e=>{ e.preventDefault(); toggleStepper(id); });
+  el.addEventListener('keydown',e=>{ if((e.key==='Enter'||e.key===' ')&&!e.repeat){ e.preventDefault(); toggleStepper(id); } });
   rotKnob(id);
 }
 function toggleStepper(id){ if(stepperFor===id){ closeStepper(); } else { openStepper(id); } }
@@ -962,10 +992,12 @@ function menuTitle(){ if(S.screen==='rap')return 'RAP ppm'; return visibleParams
 function bindStepBtn(btn,dir){
   const el=$(btn);
   const fire=()=>{ if(stepperFor) knobStep(stepperFor,dir); };
-  el.addEventListener('pointerdown',e=>{ e.preventDefault(); fire(); clearInterval(repeatTimer); let t0=Date.now();
-    repeatTimer=setInterval(()=>{ fire(); },Date.now()-t0>0?120:120); });
+  const start=()=>{ fire(); clearInterval(repeatTimer); repeatTimer=setInterval(fire,120); };
   const stop=()=>clearInterval(repeatTimer);
+  el.addEventListener('pointerdown',e=>{ e.preventDefault(); start(); });
   el.addEventListener('pointerup',stop); el.addEventListener('pointerleave',stop); el.addEventListener('pointercancel',stop);
+  el.addEventListener('keydown',e=>{ if((e.key==='Enter'||e.key===' ')&&!e.repeat){ e.preventDefault(); start(); } });
+  el.addEventListener('keyup',e=>{ if(e.key==='Enter'||e.key===' ') stop(); });
 }
 bindStepBtn('stepUp',1); bindStepBtn('stepDown',-1);
 document.addEventListener('pointerdown',e=>{ const sp=$('stepper'); if(stepperFor && !sp.contains(e.target) && !$(stepperFor).contains(e.target)) closeStepper(); });
@@ -1001,18 +1033,35 @@ $('enterBtn').onclick=()=>{ if(!guard())return; buzz(8);
     else if(name==='Rapid Atrial Pacing'){ S.screen='rap'; } render(); return; }
   if(S.screen==='modeSelect'){ applyMode(MODE_LIST[S.selMode]); S.screen='params'; S.selParam=0; render(); } };
 let enterHold=null;
-$('enterBtn').addEventListener('pointerdown',()=>{ if(S.screen==='rap'&&S.power&&!S.locked){ enterHold=setTimeout(()=>{ S.rapDelivering=true; buzz(30); coach('● Delivering Rapid Atrial Pacing at '+S.rapRate+' ppm (AOO). Release Enter to stop.'); render(); },RAP_HOLD_MS); } });
+function startEnterHold(){ if(S.screen==='rap'&&S.power&&!S.locked){ enterHold=setTimeout(()=>{ S.rapDelivering=true; buzz(30); coach('● Delivering Rapid Atrial Pacing at '+S.rapRate+' ppm (AOO). Release Enter to stop.'); render(); },RAP_HOLD_MS); } }
+$('enterBtn').addEventListener('pointerdown',startEnterHold);
 function stopRap(){ if(enterHold){clearTimeout(enterHold);enterHold=null;} if(S.rapDelivering){ S.rapDelivering=false;
   if(P.rhythm==='aflutter'&&S.rapRate>=RAP_FLUTTER_TERMINATION_PPM){ P.rhythm='sinus';P.aRate=75;P.vRate=0; syncFac(); coach('RAP burst terminated the flutter — sinus rhythm restored. (Not all flutter converts; monitor closely.)'); }
   else coach('RAP burst ended; pacing resumed at previous settings.'); render(); } }
 window.addEventListener('pointerup',stopRap);
-$('pauseBtn').addEventListener('pointerdown',()=>{ if(!guard())return; S.paused=true; S.pauseUntil=T+PAUSE_MAX_MS; buzz(15); coach('Pacing & sensing suspended (≤10 s) — observe the underlying rhythm. Release to resume.'); });
+$('enterBtn').addEventListener('keydown',e=>{ if((e.key==='Enter'||e.key===' ')&&!e.repeat){ e.preventDefault(); startEnterHold(); $('enterBtn').click(); } });
+window.addEventListener('keyup',e=>{ if(e.key==='Enter'||e.key===' ') stopRap(); });
+function startPause(){ if(!guard())return; S.paused=true; S.pauseUntil=T+PAUSE_MAX_MS; buzz(15); coach('Pacing & sensing suspended (≤10 s) — observe the underlying rhythm. Release to resume.'); }
+$('pauseBtn').addEventListener('pointerdown',startPause);
 function endPause(){ if(S.paused){ S.paused=false; coach('Pacing resumed.'); } }
 $('pauseBtn').addEventListener('pointerup',endPause); $('pauseBtn').addEventListener('pointercancel',endPause);
+$('pauseBtn').addEventListener('keydown',e=>{ if((e.key==='Enter'||e.key===' ')&&!e.repeat){ e.preventDefault(); startPause(); } });
+$('pauseBtn').addEventListener('keyup',e=>{ if(e.key==='Enter'||e.key===' ') endPause(); });
 
 /* keyboard arrows for menu dial convenience */
 window.addEventListener('keydown',e=>{ if(!S.power)return;
   if(e.key==='ArrowRight'){menuDial(1);render();} if(e.key==='ArrowLeft'){menuDial(-1);render();} });
+
+/* ========= ACCESSIBILITY: keyboard operability for the remaining custom (div-based) controls =========
+   These are simple tap controls — Enter/Space just fires the same .click() their onclick handler
+   already runs (call() is a standard, reliable way to invoke existing click listeners, so nothing
+   is re-implemented). The knobs, stepper repeat buttons, pause key, and Enter key (RAP hold) have
+   their own dedicated handlers above/below since they involve press-and-hold behavior. */
+function bindKeyActivate(id){
+  const el=$(id); if(!el) return;
+  el.addEventListener('keydown',e=>{ if((e.key==='Enter'||e.key===' ')&&!e.repeat){ e.preventDefault(); el.click(); } });
+}
+['sock-a','sock-v','dooBtn','pwrBtn','lockBtn','upBtn','downBtn','connClose','facToggle'].forEach(bindKeyActivate);
 
 /* ========= CONNECTIONS MODAL ========= */
 const cc=$('connCanvas'), cctx=cc.getContext('2d'); let hotspots=[];
