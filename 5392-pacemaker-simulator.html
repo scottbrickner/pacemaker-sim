@@ -251,6 +251,16 @@
   .debrieflog .ev .m{color:#c7d0da;flex:1 1 auto;min-width:0;overflow-wrap:anywhere}
   .debrieflog .ev.warn .m{color:#ff8a72}
   .debrieflog .ev.ok .m{color:#5fe089}
+  /* case notes (facilitator-only teaching reference for the loaded PACE/CT scenario) */
+  .casenotes{font-size:var(--font-sm);color:#c7d0da;line-height:1.5}
+  .casenotes .lvl{display:inline-block;margin-bottom:var(--space-2)}
+  .casenotes h4{font-size:var(--font-xs);font-weight:var(--fw-bold);letter-spacing:.5px;text-transform:uppercase;
+    color:#8fb0d6;margin:var(--space-3) 0 var(--space-1)}
+  .casenotes h4:first-of-type{margin-top:0}
+  .casenotes ul{margin:0;padding-left:1.1em}
+  .casenotes li{margin:2px 0}
+  .casenotes .cn-p{margin:0}
+  .casenotes .cn-sub{color:#8b97a6;font-size:var(--font-xs);margin-top:var(--space-2)}
   /* stacked fields: label on its own line, control full-width beneath — keeps everything inside the card */
   .frow{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2) var(--space-3);margin:var(--space-4) 0;min-width:0}
   .frow label{font-size:var(--font-base);font-weight:var(--fw-semibold);color:#c7d0da;flex:1 1 100%;min-width:0}
@@ -478,6 +488,19 @@
         <option value="maze_pace">SCE 3 · Maze — pacing optimization</option>
         <option value="pod0_paced">SCE 2 · POD0 AV-paced baseline</option>
       </optgroup>
+      <optgroup label="PACE Cases (stepped, by level of care)">
+        <option value="pod3_vwire_demand_backup">PACE 1 · Demand backup — is this failure or normal?</option>
+        <option value="pod2_capped_wires_new_chb">PACE 2 · Capped wires, new heart block</option>
+        <option value="pod3_threshold_drift_loc">PACE 3 · Spikes without capture</option>
+        <option value="pod3_underlying_rhythm_check">PACE 4 · What’s underneath? (unmask before wire removal)</option>
+        <option value="pod4_capture_threshold_drift">PACE 5 · Routine threshold check finds a rising threshold</option>
+        <option value="pcu_undersensing_competition">PACE 6 · Competing spikes — fixing undersensing</option>
+        <option value="pod0_avr_dependent_chb">PACE 7 · Fresh AVR, fully dependent</option>
+        <option value="cticu_loc_vs_fracture_emergency">PACE 8 · Sudden loss of capture vs. broken wire</option>
+        <option value="pod1_aflutter_rap">PACE 9 · New atrial flutter — overdrive pacing (RAP)</option>
+        <option value="cticu_oversensing_pauses">PACE 10 · Pauses with no spikes — oversensing</option>
+        <option value="cticu_v_cable_disconnect">PACE 11 · Pacing just stopped — disconnected cable</option>
+      </optgroup>
     </select>
     <div class="scn" id="scnNav" style="display:none">
       <button id="scnPrev">‹ Prev</button>
@@ -485,6 +508,11 @@
       <button id="scnReset">Reset</button>
     </div>
     <div class="hintbox" id="scnStep">No scenario loaded.</div>
+  </div>
+
+  <div class="fgrp" data-tab="scenarios">
+    <h3>Case notes</h3>
+    <div class="casenotes" id="caseNotes"><div class="note">No case notes for this scenario.</div></div>
   </div>
 
   <div class="fgrp" data-tab="rhythm">
@@ -1311,12 +1339,201 @@ const CTSCN={
   ]},
 };
 
+/* ========= PACE CASES (level-of-care stepped scenarios) =========
+   Facilitator-authored case library, tiered telemetry / stepdown / icu. Data only — see the
+   unified SCENARIOS library below for how these get applied. Each case's `notes` (objectives,
+   expected actions, debrief prompts, evaluation criteria, policy, references) is facilitator-side
+   reference material surfaced in the Case Notes card — never shown to the learner. */
+const PACESCN={
+  pod3_vwire_demand_backup:{name:'PACE 1 · Demand backup — is this failure or normal?',level:'telemetry',
+    steps:[
+      {label:'Step 1/3 — Baseline on demand backup',coach:'POD 3 CABG on telemetry; the V wire is on the generator in demand backup set at 50. The patient is comfortable in their own sinus rhythm in the high 70s and there are no pacing spikes on the monitor. Have the learner explain what they’re seeing.',set:{rhythm:'sinus',aRate:78,vRate:78,vThr:1.5,vSig:9,aThr:1.5,aSig:2.5}},
+      {label:'Step 2/3 — Rate drifts below the backup rate',coach:'Over the next while the patient’s sinus rate drifts down into the mid-40s — now below the backup rate. Watch what the generator does and confirm each paced beat captures.',set:{rhythm:'sbrady',aRate:46,vRate:46}},
+      {label:'Step 3/3 — Recovery',coach:'The patient’s own rate recovers into the 70s. Confirm the generator appropriately steps back and the patient is riding their own rhythm again.',set:{rhythm:'sinus',aRate:72,vRate:72}},
+    ],
+    notes:{
+      locRationale:'Stable post-op patient on tele with a single V epicardial wire left as a demand safety net before removal. Nothing to titrate — the skill is telling normal sensing/inhibition apart from failure.',
+      objectives:['Interpret a demand pacemaker that is sensing and appropriately INHIBITED (no spikes) as NORMAL, not a malfunction.','Verify the backup is functional (rate floor, output margin, sensitivity margin).','State the telemetry-level scope: monitor and notify; do not titrate without an order.'],
+      expectedActions:['Read the strip: intrinsic NSR at 78, no pacing spikes, SENSE indicator active.','Recognize this as appropriate demand inhibition (intrinsic rate 78 > set 50) — the device is working correctly.','Confirm backup integrity: set rate 50 floor, output 8 mA (well above a ~1.5 mA threshold), sensitivity 2.0 mV senses the 9 mV R wave with margin.','Do NOT increase output or “fix” the absence of spikes.','Document intact demand backup; notify only for a real change (rate <50, spikes without capture, symptoms).'],
+      debriefPrompts:['How did you know the missing pacing spikes were normal and not failure to pace?','What three things confirm the backup will work if the patient’s rate drops?','At telemetry level, what would prompt you to call versus adjust the device yourself?'],
+      evaluationCriteria:['Correctly labels inhibition as normal within 60 s without altering settings.','Names rate floor, output margin, and sensitivity margin as backup checks.','States escalate/notify rather than independent titration.'],
+      policy:{bestPractice:'Demand (VVI) backup with output at a safe multiple of threshold and sensitivity at ~half the R-wave amplitude; continuous ECG with audible alarms.',reconcile:['Whether telemetry RNs may adjust ANY pacemaker settings independently, or monitor-only.','Local threshold-check frequency for a capped/backup wire on a non-ICU unit.']},
+      references:['Medtronic 5392 Reference Guide (tip card)','Temporary epicardial pacing after cardiac surgery (PMC10433321)']
+    }},
+  pod2_capped_wires_new_chb:{name:'PACE 2 · Capped wires, new heart block — recognize & escalate',level:'telemetry',
+    steps:[
+      {label:'Step 1/3 — Stable, wires capped',coach:'POD 2 valve repair on telemetry. The epicardial wires are capped and coiled at the bedside, not connected to a generator. The patient is stable in sinus rhythm. This is your baseline.',set:{rhythm:'sinus',aRate:76,vRate:76,aThr:1.2,vThr:1.8,aSig:2,vSig:6}},
+      {label:'Step 2/3 — New complete heart block, symptomatic',coach:'The patient suddenly feels lightheaded. The monitor now shows complete heart block with a slow ventricular escape in the high 30s and the blood pressure is dropping. What is your priority, and what can you do right now while help is coming?',set:{rhythm:'chb',aRate:84,vRate:38}},
+      {label:'Step 3/3 — Epicardial pacing initiated',coach:'The wires are connected to a generator and pacing is started. Confirm you are getting consistent capture and the patient’s perfusion is improving, and keep the transfer to a higher level of care moving.',set:{rhythm:'chb',aRate:84,vRate:38}},
+    ],
+    notes:{
+      locRationale:'The realistic tele emergency is not titrating a running pacer — it’s recognizing a patient who now NEEDS pacing, starting the escalation, and getting them to a higher level of care.',
+      objectives:['Recognize unstable bradycardia / new CHB as an emergency requiring pacing support.','Initiate correct escalation (call for help / rapid response, bring the 5392 + cables, ready transcutaneous pacing).','Connect and initiate pacing per order/protocol, then facilitate transfer to higher acuity.'],
+      expectedActions:['Assess ABCs and hemodynamic stability; recognize symptomatic CHB with slow escape = unstable.','Call for help / activate rapid response; notify provider; apply transcutaneous pacing pads as an immediate bridge.','Retrieve the 5392 and Medtronic cables; connect the V (and A) wires: generator-end plug AND patient terminal, verify the click and gentle tug.','With the device OFF, then power on; select VVI (V only) or DDD (both) per what is connected and ordered; set rate ~60-80, output at a safe margin, sensitivity per protocol.','Confirm capture on the strip and improved perfusion; prepare for transfer to stepdown/ICU.'],
+      debriefPrompts:['What made this rhythm “unstable” and what was your first action?','Why start transcutaneous pacing while setting up the epicardial generator?','Which parts of connecting/initiating pacing are within your scope at telemetry here?'],
+      evaluationCriteria:['Identifies unstable brady/CHB and calls for help before device setup.','Uses transcutaneous bridge appropriately.','Connects wires correctly (both ends) and initiates an appropriate mode/rate, then escalates LOC.'],
+      policy:{bestPractice:'Unstable bradycardia -> ACLS bradycardia pathway; transcutaneous pacing as bridge; epicardial pacing once generator connected and ordered.',reconcile:['Whether a telemetry RN may connect capped wires and initiate pacing before a provider is at the bedside, or only prep + transcutaneous.','Standing orders vs. required provider order to initiate epicardial pacing on your unit.','Your rapid-response / transfer criteria for new CHB.']},
+      references:['Medtronic 5392 Reference Guide (tip card)','Temporary epicardial pacing after cardiac surgery (PMC10433321)','AHA ACLS adult bradycardia algorithm']
+    }},
+  pod3_threshold_drift_loc:{name:'PACE 3 · Spikes without capture — is it loss of capture or a broken wire?',level:'telemetry',
+    steps:[
+      {label:'Step 1/3 — Solid capture earlier in the shift',coach:'POD 3 on demand backup. Earlier the capture threshold was low and every pacing spike was followed by a QRS — clean 1:1 capture.',set:{rhythm:'sbrady',aRate:50,vRate:50,vThr:1.5,vSig:8,aThr:1.5,aSig:2.5}},
+      {label:'Step 2/3 — Intermittent spikes with no QRS',coach:'Later the strip shows pacing spikes that sometimes are NOT followed by a QRS when the rate dips. The patient is asymptomatic because their own rhythm mostly covers them. What is this, and how is it different from a fractured wire?',set:{rhythm:'sbrady',aRate:49,vRate:49,vThr:4}},
+      {label:'Step 3/3 — After a safe output is set',coach:'Once output is set to a safe margin above the measured threshold, confirm every spike now captures 1:1. Note the rising-threshold trend for the team.',set:{rhythm:'sbrady',aRate:49,vRate:49,vThr:4}},
+    ],
+    notes:{
+      locRationale:'Threshold drift shows up first as intermittent loss of capture while the patient’s own rhythm still covers them. Catching spike-without-QRS early — and telling it apart from lead fracture — is a core tele recognition skill.',
+      objectives:['Identify loss of capture (spike present, no following QRS) on the strip.','Differentiate loss of capture (spikes present) from lead fracture/disconnection (no spikes).','Respond within scope: notify, and if ordered, increase output to a safe margin above threshold; reassess.'],
+      expectedActions:['Recognize spikes without following QRS during rate dips = loss of capture.','Confirm spikes ARE present (rules out lead fracture / disconnection).','Notify provider; per order, increase V output to 2-3x the capture threshold (threshold ~4 mA -> output ~8-12 mA).','Reassess for consistent 1:1 capture after each change; document the threshold trend.','Escalate if threshold keeps climbing or capture cannot be restored.'],
+      debriefPrompts:['What one feature on the strip separates loss of capture from a fractured lead?','Why does a maturing epicardial wire lose capture over the first post-op days?','What output would you target once the threshold measured 4 mA, and why 2-3x?'],
+      evaluationCriteria:['Names loss of capture and cites the presence of spikes as the discriminator.','Targets output at 2-3x threshold.','Notifies/escalates rather than silencing alarms.'],
+      policy:{bestPractice:'Output set at 2-3x capture threshold (Medtronic >=2:1 margin). Rising threshold >5 mA warrants provider discussion; >10 mA suggests wire replacement.',reconcile:['Whether tele RNs may adjust output independently or only under order.','Local documentation cadence for capture-threshold trends.']},
+      references:['Medtronic 5392 Reference Guide (tip card)','Temporary epicardial pacing after cardiac surgery (PMC10433321)','Deranged Physiology: sensitivity & output settings of the temporary pacemaker']
+    }},
+  pod3_underlying_rhythm_check:{name:'PACE 4 · What’s underneath? — unmasking the rhythm before wire removal',level:'stepdown',
+    steps:[
+      {label:'Step 1/3 — Fully paced and stable',coach:'POD 3 CABG in stepdown, DDD-paced at 80 and hemodynamically stable. The team wants to know the underlying rhythm before pulling the wires this afternoon.',set:{rhythm:'avb1',aRate:52,vRate:52,aThr:1,vThr:1.5,aSig:2.5,vSig:8}},
+      {label:'Step 2/3 — Unmasking the intrinsic rhythm',coach:'Gradually bring the paced rate down while you watch the ECG and the arterial line, and let the patient’s own rhythm surface — don’t just unplug the wires. What rhythm and rate appear underneath?',set:{rhythm:'avb1',aRate:52,vRate:52}},
+      {label:'Step 3/3 — Assessed, rate restored',coach:'With the underlying rhythm visible, judge whether it’s adequate and stable, then restore the ordered rate and report your findings to the team for the removal decision.',set:{rhythm:'avb1',aRate:52,vRate:52}},
+    ],
+    notes:{
+      locRationale:'Weaning and unmasking the intrinsic rhythm before wire pull is classic stepdown work — actively manipulating the running device on a stable patient, with the safety net of doing it gradually.',
+      objectives:['Unmask the intrinsic rhythm safely by GRADUAL rate reduction (or brief PAUSE), not by unplugging leads.','Identify and characterize the underlying rhythm and its adequacy.','Report findings; recognize wire-removal readiness is a provider decision.'],
+      expectedActions:['Ensure continuous ECG + arterial/BP monitoring; defibrillator nearby.','Gradually reduce the RATE (e.g., in steps) while watching for the intrinsic rhythm to emerge — do NOT unplug the leads.','Alternatively use PAUSE (press-hold, <=10 s) to peek at the underlying rhythm.','Identify the rhythm (here: sinus ~52 with 1st-degree AV block) and judge adequacy/stability.','Restore the set rate; report the underlying rhythm and rate to the team for the removal decision.'],
+      debriefPrompts:['Why reduce the rate gradually instead of just unplugging the wires or turning the box off?','What underlying rate/rhythm would make you comfortable that the patient tolerates no pacing?','What monitoring must be in place before you unmask the rhythm?'],
+      evaluationCriteria:['Uses gradual rate reduction or brief PAUSE with ECG + BP monitored.','Correctly identifies the underlying rhythm and comments on adequacy.','Defers the removal decision to the provider.'],
+      policy:{bestPractice:'Assess intrinsic rhythm by gradual rate reduction with continuous ECG + arterial monitoring and a defibrillator available; leads are not unplugged to test.',reconcile:['Your weaning protocol (step size / interval) and who orders it.','Who removes epicardial wires and the required monitoring window afterward.']},
+      references:['Medtronic 5392 Reference Guide (tip card)','Temporary epicardial pacing after cardiac surgery (PMC10433321)']
+    }},
+  pod4_capture_threshold_drift:{name:'PACE 5 · Routine threshold check finds a rising threshold',level:'stepdown',
+    steps:[
+      {label:'Step 1/3 — Routine check begins',coach:'POD 4 in stepdown, V-paced at 60. You’re doing a routine capture-threshold check. Yesterday the threshold was about 2 mA.',set:{rhythm:'sbrady',aRate:55,vRate:55,vThr:2,vSig:7,aThr:1,aSig:2.5}},
+      {label:'Step 2/3 — The threshold has climbed',coach:'As you test, capture is lost until you get up around 5 mA — the threshold has risen. Find it precisely, then set a safe output. Where does a 5 mA threshold put you on the repositioning conversation?',set:{rhythm:'sbrady',aRate:55,vRate:55,vThr:5}},
+      {label:'Step 3/3 — Output set, trend flagged',coach:'With output set to a safe margin above 5 mA, confirm consistent capture, document the trend, and flag the rising threshold to the team.',set:{rhythm:'sbrady',aRate:55,vRate:55,vThr:5}},
+    ],
+    notes:{
+      locRationale:'Performing the stimulation-threshold test and resetting output to a safe margin is a hands-on stepdown competency — the patient is stable enough to test but the wire is changing day to day.',
+      objectives:['Perform the stimulation (capture) threshold test correctly.','Reset output to 2-3x threshold (>=2:1 safety margin).','Recognize a 5-10 mA threshold as a “discuss repositioning” trigger and escalate/trend.'],
+      expectedActions:['Set rate at least 10 ppm above the intrinsic rate to ensure pacing.','Decrease output until loss of capture, then increase until consistent 1:1 capture — that value (~5 mA) is the stimulation threshold.','Set output to 2-3x threshold (~10-15 mA); confirm stable capture.','Recognize threshold 5 mA is at the 5-10 mA “discuss repositioning” band; notify provider and document the trend.','Restore rate to the ordered value.'],
+      debriefPrompts:['Walk me through how you found the threshold — what tells you you’ve hit it?','Why 2-3x rather than just a little above threshold?','At what threshold do you start a conversation about repositioning or replacing the wire?'],
+      evaluationCriteria:['Sets rate above intrinsic before testing; correctly identifies threshold at loss->recapture.','Resets output to 2-3x threshold.','Flags the 5-10 mA band and documents/escalates.'],
+      policy:{bestPractice:'Medtronic: output at 2-3x stimulation threshold. Literature: threshold <5 mA acceptable, 5-10 mA discuss repositioning, >10 mA replace; check in normothermia/normokalemia.',reconcile:['Capture-threshold check frequency on your unit.','Who may reposition/replace wires and the escalation pathway for high thresholds.']},
+      references:['Medtronic 5392 Reference Guide (tip card)','Temporary epicardial pacing after cardiac surgery (PMC10433321)','Deranged Physiology: sensitivity & output settings of the temporary pacemaker']
+    }},
+  pcu_undersensing_competition:{name:'PACE 6 · Competing spikes — fixing undersensing',level:'stepdown',
+    steps:[
+      {label:'Step 1/3 — Spikes competing with the patient’s beats',coach:'PCU, V-paced at 60. The monitor shows pacing spikes landing on and just after the patient’s own QRS complexes. The patient has frequent PVCs and a fairly small R wave. What’s the danger here?',set:{rhythm:'pvc',aRate:62,vRate:62,vSig:4,vThr:1.5,aThr:1,aSig:2.5}},
+      {label:'Step 2/3 — Correcting the sensitivity',coach:'Find the sensing threshold and adjust so the generator reliably sees the patient’s own beats and stops competing. Which direction does sensitivity go when the R wave is small?',set:{rhythm:'pvc',aRate:62,vRate:62,vSig:4}},
+      {label:'Step 3/3 — Competition resolved',coach:'Confirm the generator now inhibits on the patient’s intrinsic beats and the competing spikes are gone. Keep watching for recurrence.',set:{rhythm:'pvc',aRate:62,vRate:62,vSig:4}},
+    ],
+    notes:{
+      locRationale:'Undersensing with pacing spikes marching into intrinsic beats is a stepdown-level sensing problem: stable enough to troubleshoot, dangerous enough (R-on-T) that it must be corrected promptly and correctly.',
+      objectives:['Recognize undersensing / competitive pacing and its R-on-T danger.','Perform the sensing threshold test.','Increase sensitivity correctly (LOWER the mV number) to ~half the R-wave amplitude.'],
+      expectedActions:['Recognize spikes competing with intrinsic QRS = undersensing; understand the R-on-T / VT-VF risk.','Find the sensing threshold: with output minimized and rate below intrinsic, adjust sensitivity to the least-sensitive mV that still senses (the R-wave amplitude, ~4 mV).','Set sensitivity to half (or less) of threshold — LOWER the number toward ~2 mV (lower mV = MORE sensitive).','Confirm the device now senses intrinsic beats and inhibits appropriately (competition resolves).','Document; monitor for recurrence.'],
+      debriefPrompts:['Which way did you turn the sensitivity, and why does a lower mV number mean MORE sensitive?','What is the specific danger of a spike landing on the T wave?','How does undersensing differ from oversensing in what you’d change?'],
+      evaluationCriteria:['Identifies undersensing and the R-on-T hazard.','Adjusts sensitivity in the correct direction (lower mV) to ~half the R wave.','Verifies appropriate inhibition after the change.'],
+      policy:{bestPractice:'Medtronic: set sensitivity to 1/2 (or less) of the sensing threshold (>=2:1 margin). Lower mV = more sensitive.',reconcile:['Whether stepdown RNs perform sensing-threshold tests independently.','Documentation standard for sensing checks.']},
+      references:['Medtronic 5392 Reference Guide (tip card)','Temporary epicardial pacing after cardiac surgery (PMC10433321)','Deranged Physiology: sensitivity & output settings of the temporary pacemaker']
+    }},
+  pod0_avr_dependent_chb:{name:'PACE 7 · Fresh AVR, fully dependent — thresholds & AV synchrony',level:'icu',
+    steps:[
+      {label:'Step 1/3 — Arrival, no escape',coach:'A fresh POD 0 AVR arrives in CTICU in complete heart block with no ventricular escape — 100% paced and fully dependent. Before you touch anything, what backup do you want at the bedside?',set:{rhythm:'chb',aRate:85,vRate:0,aThr:1,vThr:1.5,aSig:2.5}},
+      {label:'Step 2/3 — Threshold testing on a dependent patient',coach:'Establish the ventricular capture threshold and set a safe output margin, then confirm the generator is sensing the patient’s own P waves. Keep transcutaneous backup ready while you test — this patient has nothing to fall back on.',set:{rhythm:'chb',aRate:85,vRate:0}},
+      {label:'Step 3/3 — Restore AV synchrony',coach:'With the sinus node intact and the block below it, set the device so each sensed P triggers a paced ventricular beat. Confirm AV synchrony and watch the hemodynamic response.',set:{rhythm:'chb',aRate:85,vRate:0}},
+    ],
+    notes:{
+      locRationale:'A 100%-dependent fresh post-op patient is ICU/CTICU by definition: no escape rhythm, so every threshold check and setting carries immediate risk and demands the full competency.',
+      objectives:['Recognize pacemaker dependence and its implications for testing (never abruptly pause/disconnect).','Perform V capture-threshold and A sensing-threshold tests and set safe margins.','Justify DDD (atrial tracking) for AV synchrony and hemodynamics.'],
+      expectedActions:['Recognize dependence (no escape) — keep transcutaneous pads and a defibrillator ready; never test by simply pausing.','V capture threshold: transiently pace above any intrinsic, lower output to loss of capture, raise to consistent capture; set output 2-3x threshold.','A sensing threshold: adjust A sensitivity to the least-sensitive mV that still senses the P wave; set to half (>=2:1 margin).','Confirm DDD atrial tracking: each sensed P triggers a paced V after the AV interval, maintaining AV synchrony.','Verify alarms on; document thresholds and margins.'],
+      debriefPrompts:['Why is DDD preferred over VVI here given an intact sinus node with block?','How does dependence change HOW you perform a threshold test?','What backup do you want immediately available before you touch any setting?'],
+      evaluationCriteria:['States dependence and readies transcutaneous/defib backup.','Performs both threshold tests and sets 2-3x output / half sensitivity margins.','Explains AV-synchrony benefit of DDD tracking.'],
+      policy:{bestPractice:'Dependent patients: pacing checks with defibrillator nearby, continuous ECG/arterial monitoring, transcutaneous backup; DDD to preserve AV synchrony when the sinus node is intact.',reconcile:['Whether a bedside RN performs threshold testing on a dependent patient independently or with a provider present.','EP/surgery review requirement before any weaning in dependent patients.']},
+      references:['Medtronic 5392 Reference Guide (tip card)','Temporary epicardial pacing after cardiac surgery (PMC10433321)']
+    }},
+  cticu_loc_vs_fracture_emergency:{name:'PACE 8 · Sudden loss of capture — capture failure vs. broken wire',level:'icu',
+    steps:[
+      {label:'Step 1/4 — Baseline, capturing well',coach:'CTICU, dependent, V-paced with solid 1:1 capture. This is your baseline.',set:{rhythm:'chb',aRate:80,vRate:0,vThr:2,leadV:true}},
+      {label:'Step 2/4 — Abrupt loss of capture, spikes still present',coach:'Abruptly the paced beats stop capturing — you still see pacing spikes but no QRS follows them, and the blood pressure is falling. What is your immediate move in a fully dependent patient?',set:{rhythm:'chb',aRate:80,vRate:0,vThr:15,leadV:true}},
+      {label:'Step 3/4 — Now the spikes are gone',coach:'Now even the pacing spikes have disappeared. What does the loss of spikes tell you the problem is — and will raising output fix it? Get a bridge going.',set:{rhythm:'chb',aRate:80,vRate:0,vThr:15,leadV:false}},
+      {label:'Step 4/4 — Circuit restored',coach:'The ventricular circuit is restored and, with adequate output, capture returns. Set a safe margin and reassess the patient.',set:{rhythm:'chb',aRate:80,vRate:0,vThr:2,leadV:true}},
+    ],
+    notes:{
+      locRationale:'An abrupt pacing failure in a dependent patient is a true code-level emergency; only an ICU/CTICU RN is expected to run the asynchronous-rescue + troubleshooting algorithm at the bedside.',
+      objectives:['Execute the emergency response to loss of capture in a dependent patient.','Use DOO/EMERGENCY (high-output asynchronous) to remove sensing as a variable.','Differentiate loss of capture (spikes present) from lead fracture/disconnection (no spikes) and act.'],
+      expectedActions:['Call for help; assess pulse/perfusion; start ACLS bradycardia/arrest pathway as needed.','Immediately increase output to MAX; press DOO/EMERGENCY for high-output asynchronous pacing (removes sensing as a cause).','If spikes are present but no capture -> loss of capture: increase output, check wire position; ready transcutaneous pacing.','If NO spikes appear -> suspect lead fracture/disconnection: open the connection check, reseat generator-end and terminal-end connections, swap the cable, use transcutaneous pacing as the bridge.','Do not leave the bedside; escalate to provider/EP; document.'],
+      debriefPrompts:['What single strip finding tells you whether to raise output or chase a broken circuit?','Why go asynchronous (DOO) first in a dependent patient?','When does transcutaneous pacing enter your algorithm?'],
+      evaluationCriteria:['Prioritizes help + max output + DOO within seconds.','Correctly uses spikes-present vs spikes-absent to branch the troubleshooting.','Deploys transcutaneous backup and does not abandon the patient.'],
+      policy:{bestPractice:'Loss of capture in a dependent patient: maximize output, asynchronous emergency pacing, systematic circuit check (patient->wire->cable->generator), transcutaneous bridge, defibrillator at bedside.',reconcile:['Your emergency pacing / failure-to-capture procedure and who is called.','Availability and setup of transcutaneous pacing at your bedside.']},
+      references:['Medtronic 5392 Reference Guide (tip card)','Temporary epicardial pacing after cardiac surgery (PMC10433321)','AHA ACLS adult bradycardia algorithm']
+    }},
+  pod1_aflutter_rap:{name:'PACE 9 · New atrial flutter — overdrive pacing to convert',level:'icu',
+    steps:[
+      {label:'Step 1/3 — New regular narrow tachycardia',coach:'POD 1 CABG suddenly goes into a regular narrow-complex tachycardia around 150. The atrial-wire electrogram shows organized sawtooth flutter waves near 300. Confirm exactly what this rhythm is before you consider overdrive.',set:{rhythm:'aflutter',vRate:150,aSig:2,vSig:8}},
+      {label:'Step 2/3 — Set up and deliver RAP',coach:'With the order confirmed and a defibrillator on the patient, deliver a rapid atrial burst just above the flutter’s atrial rate for a brief run through the atrial wires. Watch the monitor closely as you pace.',set:{rhythm:'aflutter',vRate:150}},
+      {label:'Step 3/3 — Converts to sinus',coach:'The atria capture and, when you stop the burst, the patient breaks to sinus rhythm. Confirm a stable rhythm and rate and reassess. (If instead it had accelerated or degenerated into AF, you would stop, support the patient, and notify.)',set:{rhythm:'sinus',aRate:78,vRate:78}},
+    ],
+    notes:{
+      locRationale:'RAP through atrial epicardial wires is an advanced, physician-directed maneuver performed in the ICU/CTICU with defibrillation immediately available — outside the scope of lower-acuity units.',
+      objectives:['Confirm the rhythm is atrial FLUTTER (RAP does not convert AF) and confirm order + roles.','Set up RAP safely: defibrillator/pads on, atrial wires confirmed, correct burst rate.','Deliver RAP at 20-30 ppm above the flutter atrial rate and evaluate the result.'],
+      expectedActions:['Verify it is atrial flutter (organized sawtooth ~300), NOT atrial fibrillation — RAP will not convert AF.','Confirm the physician order and who performs RAP; ensure a defibrillator/pads are on the patient and emergency drugs available.','Confirm atrial wires are the ones connected; select RAP; set the burst rate ~20-30 ppm above the atrial flutter rate (~320-340 ppm).','Deliver the burst for a short hold (per protocol, seconds) while watching the monitor; release.','Assess for conversion to sinus (success) vs acceleration/AF induction (stop, support, notify).'],
+      debriefPrompts:['Why does RAP work for flutter but not for atrial fibrillation?','What must be at the bedside before you deliver a burst, and why?','What are the two ways this can go wrong, and how would you recognize each?'],
+      evaluationCriteria:['Confirms flutter vs AF and confirms order/roles before delivering.','Sets burst rate 20-30 ppm above the atrial rate with defib ready.','Correctly interprets conversion vs proarrhythmia and responds.'],
+      policy:{bestPractice:'RAP for atrial flutter: burst 20-30 ppm above the flutter atrial rate (~260-340 ppm) for a brief hold, atrial wires only, defibrillator immediately available; ineffective for AF.',reconcile:['Who is credentialed to perform RAP at your facility (physician/EP vs credentialed RN).','Your RAP protocol: exact burst duration, escalation steps, and consent/order requirements.']},
+      references:['Medtronic 5392 Reference Guide (tip card)','Temporary epicardial pacing after cardiac surgery (PMC10433321)','Overdrive pacing (StatPearls NBK549874)']
+    }},
+  cticu_oversensing_pauses:{name:'PACE 10 · Pauses with no spikes — oversensing in a dependent patient',level:'icu',
+    steps:[
+      {label:'Step 1/3 — Baseline paced, patient rewarming',coach:'CTICU, dependent, V-paced with good capture. The patient is being actively rewarmed and is starting to shiver.',set:{rhythm:'chb',aRate:80,vRate:0,vThr:1.5}},
+      {label:'Step 2/3 — Pauses where paced beats should be',coach:'The monitor now shows pauses where you’d expect paced beats — the generator keeps inhibiting and no spikes appear, while this dependent patient needs every beat. How is this different from a fractured wire, and what’s your rescue?',set:{rhythm:'chb',aRate:80,vRate:0,oversV:true}},
+      {label:'Step 3/3 — Rescued and source treated',coach:'With sensitivity set so the noise no longer inhibits it — or asynchronous pacing running — the generator paces consistently again. Treat the shivering and secure the connections so it doesn’t recur.',set:{rhythm:'chb',aRate:80,vRate:0}},
+    ],
+    notes:{
+      locRationale:'Oversensing that inhibits output in a dependent patient produces life-threatening pauses; recognizing “no spikes when the patient needs them” and rescuing with asynchronous pacing is ICU-level judgment.',
+      objectives:['Recognize oversensing (inappropriate inhibition -> pauses, no spikes) versus a fractured lead.','Rescue a dependent patient: decrease sensitivity (raise mV) or go asynchronous (VOO/DOO).','Address the noise source (shivering/warming/loose connections).'],
+      expectedActions:['Recognize pauses with NO spikes in a patient who needs pacing = oversensing (device is inhibited by noise), and understand the danger given dependence.','Rescue immediately: decrease sensitivity (RAISE the mV number, less sensitive) or switch to asynchronous (VOO/DOO) to guarantee output.','Confirm consistent pacing and capture return.','Remove the noise source: treat shivering, secure/insulate connections, minimize electrical interference.','Re-optimize sensitivity once stable; document.'],
+      debriefPrompts:['How do you tell oversensing apart from a lead fracture at the bedside — both show no spikes?','In a dependent patient, why might you jump straight to asynchronous pacing?','Which direction is the sensitivity dial for oversensing, and why is that opposite to undersensing?'],
+      evaluationCriteria:['Identifies oversensing and the dependence hazard.','Corrects sensitivity in the right direction (raise mV) or goes asynchronous to rescue.','Addresses the underlying noise source.'],
+      policy:{bestPractice:'Oversensing: reduce sensitivity (raise mV) or pace asynchronously; treat shivering/warming and noise; never discharge a poorly sensing system to a lower level of care.',reconcile:['When your policy permits/requires switching to asynchronous pacing.','Escalation pathway for recurrent oversensing.']},
+      references:['Medtronic 5392 Reference Guide (tip card)','Temporary epicardial pacing after cardiac surgery (PMC10433321)','Deranged Physiology: sensitivity & output settings of the temporary pacemaker']
+    }},
+  cticu_v_cable_disconnect:{name:'PACE 11 · Pacing just stopped — find the disconnected cable',level:'icu',
+    steps:[
+      {label:'Step 1/3 — Baseline, capturing',coach:'CTICU, dependent, V-paced with solid capture. Baseline before the event.',set:{rhythm:'chb',aRate:80,vRate:0,vThr:1.5}},
+      {label:'Step 2/3 — Pacing stops, no spikes at all',coach:'Pacing suddenly stops — no spikes at all — even though the generator is on with adequate output set. Something in the circuit is open, and the patient is dependent. Work it end to end and get a bridge ready.',set:{rhythm:'chb',aRate:80,vRate:0},connectionFault:'disconnect_v_cable'},
+      {label:'Step 3/3 — Reconnected at the generator',coach:'The ventricular cable was unseated at the generator port; once it’s reconnected and confirmed with a gentle tug, pacing and capture return. Set a safe margin and document.',set:{rhythm:'chb',aRate:80,vRate:0}},
+    ],
+    notes:{
+      locRationale:'A dependent patient whose failure is a disconnected/loose cable is a fast ICU save if the RN systematically works the circuit; it builds the hands-on connection-check muscle memory the emergency scenarios rely on.',
+      objectives:['Work the pacing circuit systematically (generator -> cable -> terminal -> wire -> patient).','Identify and correct a connection fault using the connection check.','Bridge with transcutaneous pacing while restoring the circuit.'],
+      expectedActions:['Recognize no spikes despite an on generator with output = the output isn’t reaching the heart (open circuit), and the patient is dependent.','Call for help; ready transcutaneous pacing as the immediate bridge.','Open the connection check and work the circuit end to end: generator-end plug (click + tug), bridging cable, terminal block, patient wire.','Find and reseat the open connection (here the V patient-terminal end); confirm the click and gentle tug.','Verify pacing + capture return; set a safe output margin; document and notify.'],
+      debriefPrompts:['What is your ordered path through the circuit, and why start at the generator?','How does “no spikes” from a disconnection look different from oversensing on the strip and clinically?','What is your bridge while you fix the circuit?'],
+      evaluationCriteria:['Systematically checks each connection point rather than randomly.','Identifies and reseats the open terminal; confirms capture.','Uses transcutaneous bridge for the dependent patient.'],
+      policy:{bestPractice:'Systematic circuit check for loss of output; verify audible click and gentle tug at each connection; transcutaneous backup for dependent patients.',reconcile:['Your standard for securing/labeling pacing connections and cable-change practice.','Who is notified for a connection-related pacing failure.']},
+      references:['Medtronic 5392 Reference Guide (tip card)','Medtronic 5392 Compatibility Components guide','Temporary epicardial pacing after cardiac surgery (PMC10433321)']
+    }},
+};
+
+/* connection/cable faults a stepped scenario can inject — generalizes the pattern the existing
+   discV quick-scenario handles by hand (conn.vGen=false), so future scenarios can reuse a named
+   fault instead of writing custom apply code each time. Runs AFTER set() and after the standard
+   resetFaultsAndConnections() baseline that already ran before this step, so it reliably overrides
+   just the one connection point. */
+const CONNECTION_FAULTS={
+  disconnect_a_cable:()=>{ conn.aGen=false; },
+  disconnect_v_cable:()=>{ conn.vGen=false; },
+};
+function applyScenarioStep(st){
+  set(st.set||{});
+  if(st.connectionFault && CONNECTION_FAULTS[st.connectionFault]) CONNECTION_FAULTS[st.connectionFault]();
+}
+
 /* ========= UNIFIED SCENARIO LIBRARY =========
-   Folds the quick one-shot scenarios (SCN, above) and the CT-surgery stepped scenarios (CTSCN,
-   above) into one {name, steps:[{label, coach, apply}]} schema, so the facilitator has a single
-   dropdown + Prev/Next/Reset that works for both kinds. Built directly from SCN/CTSCN and the
-   <option> labels already in the DOM — no scenario value is retyped here, so behavior for every
-   existing scenario is unchanged.
+   Folds the quick one-shot scenarios (SCN, above), the CT-surgery stepped scenarios (CTSCN,
+   above), and the PACE level-of-care cases (PACESCN, above) into one
+   {name, level, notes, steps:[{label, coach, apply}]} schema, so the facilitator has a single
+   dropdown + Prev/Next/Reset that works for all three kinds. Built directly from SCN/CTSCN/PACESCN
+   and the <option> labels already in the DOM — no scenario value is retyped here, so behavior for
+   every existing scenario is unchanged.
    'discV' and 'threshtest' already call coach() themselves inside their SCN function with a
    scenario-specific message; every other quick scenario reuses the generic message
    loadScenario() used to show. (Previously the generic message was shown unconditionally after
@@ -1334,7 +1551,13 @@ Object.keys(SCN).forEach(key=>{
 });
 Object.keys(CTSCN).forEach(key=>{
   SCENARIOS[key]={ name:CTSCN[key].name, steps:CTSCN[key].steps.map(st=>({
-    label:st.label, coach:st.coach, apply:()=>set(st.set)
+    label:st.label, coach:st.coach, apply:()=>applyScenarioStep(st)
+  })) };
+});
+Object.keys(PACESCN).forEach(key=>{
+  const src=PACESCN[key];
+  SCENARIOS[key]={ name:src.name, level:src.level, notes:src.notes, steps:src.steps.map(st=>({
+    label:st.label, coach:st.coach, apply:()=>applyScenarioStep(st)
   })) };
 });
 
@@ -1348,7 +1571,7 @@ function updateScnNav(){
 }
 function scnApply(){
   const sc=SCENARIOS[scnId], ind=$('scnStep');
-  if(!sc){ if(ind) ind.textContent='No scenario loaded.'; updateScnNav(); return; }
+  if(!sc){ if(ind) ind.textContent='No scenario loaded.'; updateScnNav(); renderCaseNotes(); return; }
   const st=sc.steps[scnStep];
   resetFaultsAndConnections();
   st.apply();
@@ -1357,6 +1580,29 @@ function scnApply(){
   if(st.coach) coach(st.coach);
   if(ind) ind.innerHTML = sc.steps.length>1 ? ('<b>'+sc.name+'</b><br>'+st.label) : ('<b>'+sc.name+'</b>');
   updateScnNav();
+  renderCaseNotes();
+}
+/* facilitator-only teaching reference for the currently loaded scenario — objectives, expected
+   actions, debrief prompts, evaluation criteria, policy, and references. Absent for scenarios that
+   don't carry this data (the original quick scenarios and CT-surgery cases). */
+const LEVEL_LABEL={telemetry:'Telemetry',stepdown:'Stepdown',icu:'ICU / CTICU'};
+const LEVEL_SEV={telemetry:'ok',stepdown:'info',icu:'warn'};
+function renderCaseNotes(){
+  const box=$('caseNotes'); if(!box) return;
+  const sc=SCENARIOS[scnId], n=sc&&sc.notes;
+  if(!n){ box.innerHTML='<div class="note">No case notes for this scenario.</div>'; return; }
+  const ul=arr=>(arr&&arr.length)?('<ul>'+arr.map(x=>'<li>'+escHtml(x)+'</li>').join('')+'</ul>'):'';
+  let h='';
+  if(sc.level) h+='<span class="tag '+(LEVEL_SEV[sc.level]||'')+' lvl">'+escHtml(LEVEL_LABEL[sc.level]||sc.level)+'</span>';
+  if(n.locRationale) h+='<p class="cn-p">'+escHtml(n.locRationale)+'</p>';
+  if(n.objectives) h+='<h4>Objectives</h4>'+ul(n.objectives);
+  if(n.expectedActions) h+='<h4>Expected actions</h4>'+ul(n.expectedActions);
+  if(n.debriefPrompts) h+='<h4>Debrief prompts</h4>'+ul(n.debriefPrompts);
+  if(n.evaluationCriteria) h+='<h4>Evaluation criteria</h4>'+ul(n.evaluationCriteria);
+  if(n.policy){ h+='<h4>Policy</h4><p class="cn-p">'+escHtml(n.policy.bestPractice)+'</p>';
+    if(n.policy.reconcile) h+='<div class="cn-sub">Reconcile with your P&amp;P:</div>'+ul(n.policy.reconcile); }
+  if(n.references) h+='<h4>References</h4>'+ul(n.references);
+  box.innerHTML=h;
 }
 function scnLoad(id){ scnId=id; scnStep=0; scnApply(); }
 const _scnSel=$('scnSel'); if(_scnSel) _scnSel.onchange=()=>scnLoad(_scnSel.value);
