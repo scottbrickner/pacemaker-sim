@@ -158,6 +158,29 @@
   .wirepick button{font-size:12px;padding:7px 12px;border-radius:8px;border:1px solid #2a333d;background:#161c24;color:#dbe3ec;cursor:pointer}
   .wirepick button.act{border-color:#3b82f6;background:#16263a;color:#cfe3ff}
 
+  /* ===== PRACTICE MODE (?role=practice) — surrounding-surface only, reuses existing tokens/palette ===== */
+  .modalbox .note{font-size:12px;color:#8b97a6;line-height:1.5;margin:6px 0}
+  .modalbox .note.warn{color:#ff8a72}
+  .practice-section-label{font-size:11px;font-weight:700;color:#7c93ad;text-transform:uppercase;letter-spacing:.5px;margin:16px 0 8px}
+  .practice-section-label:first-of-type{margin-top:4px}
+  .practice-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
+  .practice-card{text-align:left;background:#131a24;border:1px solid #28303a;border-radius:12px;padding:12px;cursor:pointer;color:#c7d0da;font:inherit}
+  .practice-card:hover{border-color:#3a4552}
+  .practice-card.on{border-color:#5db4ff;background:#152030}
+  .practice-card .pc-title{font-weight:700;font-size:13px;margin-bottom:4px}
+  .practice-card .pc-sub{font-size:11.5px;color:#8b97a6;line-height:1.4}
+  .practice-modetoggle{display:flex;gap:8px}
+  .practice-modetoggle .pm-opt{flex:1;background:#131a24;border:1px solid #28303a;border-radius:10px;padding:10px;color:#c7d0da;cursor:pointer;font:inherit;display:flex;flex-direction:column;gap:2px;align-items:flex-start}
+  .practice-modetoggle .pm-opt.on{border-color:#5fe089;background:#0f2417}
+  .practice-modetoggle .pm-opt .pm-sub{font-size:11px;color:#8b97a6;font-weight:400}
+  .practice-id-row{display:flex;gap:8px;flex-wrap:wrap}
+  .practice-id-row input{flex:1;min-width:160px;background:#0c1118;border:1px solid #28303a;border-radius:8px;padding:8px 10px;color:#e7edf3;font:inherit}
+  .sbtn.primary{background:#1c3d2a;border-color:#2f6e46;color:#8fe6ac}
+  .sbtn.primary:disabled{opacity:.45;cursor:not-allowed}
+  .practice-scorecard{margin:10px 0}
+  .practice-scorecard .sc-row{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid #171c24;font-size:12.5px}
+  .practice-scorecard .sc-row:last-child{border-bottom:none}
+
   /* ===== MONITOR (rhythm-strip framing) ===== */
   .monitor{background:#05060a;border:1px solid #1a1f27;border-radius:var(--radius-lg);padding:var(--space-4) var(--space-5);
     width:580px;flex:1 1 480px;min-width:340px;box-shadow:0 10px 30px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.02)}
@@ -387,6 +410,9 @@
       <span><i style="background:var(--spikeV)"></i>Ventricular pace spike</span>
     </div>
     <div class="hintbox" id="coach" role="status" aria-live="polite">Press the green power button to begin. Note: the bridging cables are <b>not plugged into the generator</b> yet — click the A and V sockets on top of the device to connect them before pacing will work.</div>
+    <div class="frow" id="practiceBar" style="display:none;margin-top:10px;gap:8px">
+      <button class="sbtn" id="practiceFinish" type="button">Finish attempt &amp; see debrief</button>
+    </div>
   </div>
 
 <div class="stepper" id="stepper">
@@ -413,6 +439,57 @@
       <button id="wTv" data-w="transvenous">Transvenous catheter</button>
     </div>
     <div class="conntip" id="connTip">Tap a connection point to toggle it.</div>
+  </div>
+</div>
+
+<div class="modal" id="practiceHome">
+  <div class="modalbox">
+    <h2>5392 Practice Mode</h2>
+    <div class="sub2">Self-directed practice — no facilitator needed. Pick a skill area and a feedback mode to begin.</div>
+
+    <div class="practice-section-label">Choose a skill area</div>
+    <div class="practice-cards" id="practiceCards">
+      <button class="practice-card" data-cat="setup" type="button">
+        <div class="pc-title">Setup &amp; Parameter Adjustments</div>
+        <div class="pc-sub">Reach a target mode, rate, and safe outputs from a given starting rhythm.</div>
+      </button>
+      <button class="practice-card" data-cat="threshold" type="button">
+        <div class="pc-title">Threshold Testing</div>
+        <div class="pc-sub">Find a capture or sensing threshold and set a safe margin.</div>
+      </button>
+      <button class="practice-card" data-cat="troubleshoot" type="button">
+        <div class="pc-title">Troubleshooting</div>
+        <div class="pc-sub">Recognize and correct a pacing problem.</div>
+      </button>
+    </div>
+
+    <div class="practice-section-label">Feedback mode</div>
+    <div class="practice-modetoggle" id="practiceModeToggle">
+      <button class="pm-opt on" data-mode="training" type="button">Guided Practice<span class="pm-sub">Live hints while you work</span></button>
+      <button class="pm-opt" data-mode="validation" type="button">Validation<span class="pm-sub">Debrief only, at the end</span></button>
+    </div>
+
+    <div class="practice-section-label" id="practiceIdLabel">Your name &amp; email <span id="practiceIdNote">(optional in Guided Practice)</span></div>
+    <div class="practice-id-row">
+      <input type="text" id="practiceName" placeholder="Full name" autocomplete="name">
+      <input type="email" id="practiceEmail" placeholder="you@med.usc.edu" autocomplete="email">
+    </div>
+    <div class="note warn" id="practiceIdErr" style="display:none">Enter a name and a valid @med.usc.edu email to start a Validation attempt.</div>
+
+    <button class="sbtn primary" id="practiceStart" disabled type="button" style="margin-top:14px">Start</button>
+  </div>
+</div>
+
+<div class="modal" id="practiceDebrief">
+  <div class="modalbox">
+    <h2 id="practiceDebriefTitle">Debrief</h2>
+    <div class="sub2" id="practiceDebriefSub"></div>
+    <div class="practice-scorecard" id="practiceScorecard"></div>
+    <div class="debrieflog" id="practiceEventLog"></div>
+    <div class="frow" style="margin-top:12px;gap:8px">
+      <button class="sbtn" id="practiceTryAnother" type="button">Try another</button>
+      <button class="sbtn" id="practiceChooseDifferent" type="button">Choose a different category</button>
+    </div>
   </div>
 </div>
 
@@ -647,10 +724,12 @@ const RELAY_BACKOFF_START_MS=1000, RELAY_BACKOFF_MULT=1.6, RELAY_BACKOFF_MAX_MS=
 /* ===== dual-screen session ===== */
 const WIN_ID=Math.random().toString(36).slice(2);
 const qp=new URLSearchParams(location.search);
-const ROLE=(qp.get('role')==='learner')?'learner':'control';
+const ROLE=(qp.get('role')==='learner')?'learner':(qp.get('role')==='practice')?'practice':'control';
 const SYNC_KEY='sim5392_sync_v1';
-let bc=null; try{ bc=new BroadcastChannel('sim5392'); }catch(e){}
-let syncReady=(ROLE!=='learner'), lastSync='', lastRecvTime=0;
+/* Practice mode never opens a sync channel — a solo self-practice attempt must never
+   bleed into (or be overwritten by) a real facilitator/learner pair open in another tab. */
+let bc=null; try{ if(ROLE!=='practice') bc=new BroadcastChannel('sim5392'); }catch(e){}
+let syncReady=(ROLE==='control'), lastSync='', lastRecvTime=0;
 /* cross-device relay (self-hosted WebSocket) */
 const relay={ url:qp.get('relay')||(function(){try{return localStorage.getItem('sim5392_relay')||'';}catch(e){return'';}})(), code:qp.get('code')||'', ws:null, peers:0, want:false, backoff:RELAY_BACKOFF_START_MS };
 
@@ -1731,6 +1810,147 @@ const _debriefDownload=$('debriefDownload'); if(_debriefDownload) _debriefDownlo
 };
 const _debriefClear=$('debriefClear'); if(_debriefClear) _debriefClear.onclick=()=>{ EVENT_LOG.length=0; renderDebriefLog(); };
 
+/* ========= PRACTICE MODE (?role=practice) =========
+   Self-directed, no facilitator. P1 scope: role/shell/scaffolding only — reuses set()/
+   resetFaultsAndConnections() exactly like the facilitator scenario library does, and reuses
+   the existing debrief-log machinery (EVENT_LOG/fmtElapsed/escHtml) for the event trail.
+   Randomization and auto-grading are NOT built yet (P2 = Threshold Testing, P3 = Troubleshooting,
+   P3b = Setup & Parameter Adjustments) — "Start" below runs one FIXED smoke-test instance per
+   category, grounded in the same rhythm/threshold value patterns PACESCN already uses, purely to
+   verify the shell end-to-end this phase. */
+
+const PRACTICE={
+  active:false, category:null, feedbackMode:'training', // 'training' (Guided Practice) | 'validation'
+  learnerName:'', learnerEmail:'',
+  logStartIdx:0, startedAt:0
+};
+
+const PRACTICE_CATEGORIES={
+  setup:{
+    label:'Setup & Parameter Adjustments',
+    competentIf:[
+      'Recognizes the rhythm and confirms AV synchrony (DDD with atrial tracking) or the mode appropriate to the case',
+      'Confirms capture on every paced channel',
+      'Sets a safe output margin (≥2× threshold)',
+      'Locks the device before leaving the bedside'
+    ]
+  },
+  threshold:{
+    label:'Threshold Testing',
+    competentIf:[
+      'Identifies the capture or sensing threshold within tolerance (±0.5 mA capture / ±1 sensitivity step)',
+      'Sets a safe margin (output ≥2× capture threshold; sensitivity ≤½ sensed signal)',
+      'Demonstrates correct mV-direction reasoning (lower mV = more sensitive)'
+    ]
+  },
+  troubleshoot:{
+    label:'Troubleshooting',
+    competentIf:[
+      'Correctly recognizes the fault (loss of capture / no output / undersensing / oversensing)',
+      'Applies the correct fix (raise output / repair connection / lower mV / raise mV)',
+      'Confirms capture is restored'
+    ]
+  }
+};
+
+/* Temporary fixed instances — not randomized yet (see P2/P3/P3b above). */
+const PRACTICE_SMOKE_TEST={
+  setup:{rhythm:'chb',aRate:90,vRate:35,aThr:1.0,vThr:1.5,aSig:2.5,vSig:10},
+  threshold:{rhythm:'sbrady',aRate:50,vRate:50,vThr:2.0,vSig:8,aThr:1.0,aSig:2.5},
+  troubleshoot:{rhythm:'chb',aRate:84,vRate:38,vThr:1.5}
+};
+
+function isPracticeEmailValid(v){ return /^[^\s@]+@med\.usc\.edu$/i.test(String(v||'').trim()); }
+
+function updatePracticeStartEnabled(){
+  const btn=$('practiceStart'); if(!btn) return;
+  const idOk = PRACTICE.feedbackMode==='training' || ((($('practiceName').value||'').trim()) && isPracticeEmailValid($('practiceEmail').value));
+  const err=$('practiceIdErr'); if(err) err.style.display=(PRACTICE.feedbackMode==='validation' && !idOk) ? '' : 'none';
+  btn.disabled = !(PRACTICE.category && idOk);
+}
+
+function openPracticeHome(){
+  const m=$('practiceHome'); if(!m) return;
+  document.querySelectorAll('#practiceCards .practice-card').forEach(c=>c.classList.remove('on'));
+  PRACTICE.category=null;
+  m.classList.add('open');
+  updatePracticeStartEnabled();
+}
+function closePracticeHome(){ const m=$('practiceHome'); if(m) m.classList.remove('open'); }
+
+document.querySelectorAll('#practiceCards .practice-card').forEach(card=>{
+  card.onclick=()=>{
+    document.querySelectorAll('#practiceCards .practice-card').forEach(c=>c.classList.remove('on'));
+    card.classList.add('on');
+    PRACTICE.category=card.dataset.cat;
+    updatePracticeStartEnabled();
+  };
+});
+document.querySelectorAll('#practiceModeToggle .pm-opt').forEach(opt=>{
+  opt.onclick=()=>{
+    document.querySelectorAll('#practiceModeToggle .pm-opt').forEach(o=>o.classList.remove('on'));
+    opt.classList.add('on');
+    PRACTICE.feedbackMode=opt.dataset.mode;
+    const note=$('practiceIdNote');
+    if(note) note.textContent = PRACTICE.feedbackMode==='training' ? '(optional in Guided Practice)' : '(required for Validation)';
+    updatePracticeStartEnabled();
+  };
+});
+const _pName=$('practiceName'); if(_pName) _pName.oninput=updatePracticeStartEnabled;
+const _pEmail=$('practiceEmail'); if(_pEmail) _pEmail.oninput=updatePracticeStartEnabled;
+
+function renderPracticeEventLog(){
+  const box=$('practiceEventLog'); if(!box) return;
+  const slice=EVENT_LOG.slice(PRACTICE.logStartIdx);
+  if(!slice.length){ box.innerHTML='<div class="note">No events yet.</div>'; return; }
+  box.innerHTML=slice.map(e=>'<div class="ev'+(e.sev?' '+e.sev:'')+'"><span class="t">'+fmtElapsed(e.t-sessionStartT)+'</span><span class="m">'+escHtml(e.message)+'</span></div>').join('');
+  box.scrollTop=box.scrollHeight;
+}
+
+function renderPracticeScorecard(){
+  const box=$('practiceScorecard'); if(!box || !PRACTICE.category) return;
+  const cat=PRACTICE_CATEGORIES[PRACTICE.category];
+  box.innerHTML='<div class="note">Auto-grading isn’t built yet for this phase — review the checklist below against what you saw and did.</div>'
+    + cat.competentIf.map(c=>'<div class="sc-row"><span>'+escHtml(c)+'</span></div>').join('');
+}
+
+function startPracticeAttempt(){
+  if(!PRACTICE.category) return;
+  PRACTICE.active=true;
+  PRACTICE.learnerName=($('practiceName').value||'').trim();
+  PRACTICE.learnerEmail=($('practiceEmail').value||'').trim();
+  PRACTICE.logStartIdx=EVENT_LOG.length;
+  PRACTICE.startedAt=Date.now();
+  closePracticeHome();
+  const pb=$('practiceBar'); if(pb) pb.style.display='';
+  resetFaultsAndConnections();
+  set(PRACTICE_SMOKE_TEST[PRACTICE.category]);
+  coach('Practice attempt started: '+PRACTICE_CATEGORIES[PRACTICE.category].label+'. (This phase runs a fixed setup — randomized cases arrive in a later update.) Work the device, then press “Finish attempt” when done.');
+}
+
+function finishPracticeAttempt(){
+  if(!PRACTICE.active) return;
+  PRACTICE.active=false;
+  const pb=$('practiceBar'); if(pb) pb.style.display='none';
+  const cat=PRACTICE_CATEGORIES[PRACTICE.category];
+  $('practiceDebriefTitle').textContent='Debrief — '+cat.label;
+  $('practiceDebriefSub').textContent=(PRACTICE.feedbackMode==='training'?'Guided Practice':'Validation')+' attempt'+(PRACTICE.learnerName?' — '+PRACTICE.learnerName:'')+'.';
+  renderPracticeScorecard();
+  renderPracticeEventLog();
+  const m=$('practiceDebrief'); if(m) m.classList.add('open');
+}
+
+const _pStart=$('practiceStart'); if(_pStart) _pStart.onclick=startPracticeAttempt;
+const _pFinish=$('practiceFinish'); if(_pFinish) _pFinish.onclick=finishPracticeAttempt;
+const _pTryAnother=$('practiceTryAnother'); if(_pTryAnother) _pTryAnother.onclick=()=>{
+  const m=$('practiceDebrief'); if(m) m.classList.remove('open');
+  startPracticeAttempt();
+};
+const _pChooseDifferent=$('practiceChooseDifferent'); if(_pChooseDifferent) _pChooseDifferent.onclick=()=>{
+  const m=$('practiceDebrief'); if(m) m.classList.remove('open');
+  openPracticeHome();
+};
+
 /* ========= QR CODE (inlined helper — ISO/IEC 18004, byte-mode only) =========
    Renders the learner link as a scannable code for the two-device pairing flow.
    No external dependency — a from-scratch implementation of the standard QR
@@ -2086,6 +2306,7 @@ function sendSync(str){ lastSync=str; const msg={win:WIN_ID,data:str};
   if(bc){ try{ bc.postMessage(msg); }catch(e){} }
   if(relay.ws&&relay.ws.readyState===1){ try{ relay.ws.send(JSON.stringify({type:'state',code:relay.code,win:WIN_ID,data:str})); }catch(e){} } }
 function applyRemote(msg){
+  if(ROLE==='practice') return;
   if(!msg||msg.win===WIN_ID||msg.data===lastSync) return;
   lastSync=msg.data; lastRecvTime=Date.now();
   let o; try{ o=JSON.parse(msg.data); }catch(e){ return; }
@@ -2160,6 +2381,13 @@ function applyRole(){
     document.title='5392 — Learner Display';
     if(relay.url&&relay.code){ relayLog('Connecting to facilitator…'); connectRelay(); }
     else relayLog('Open the facilitator’s learner link on this device to connect.');
+  } else if(ROLE==='practice'){
+    document.body.classList.add('practiceview');
+    const fp=$('facPanel'),ft=$('facTab'); if(fp)fp.style.display='none'; if(ft)ft.style.display='none';
+    const dt=$('dashTop'); const dtTitles=dt&&dt.querySelector('.dashtitles');
+    if(dtTitles) dtTitles.innerHTML='<span class="badge">● PRACTICE MODE — self-directed</span>';
+    document.title='5392 — Practice Mode';
+    openPracticeHome();
   } else {
     document.body.classList.add('dashview');
     document.querySelectorAll('.facpanel .fgrp').forEach(g=>{ g.style.display=''; }); // dashboard: show every control
