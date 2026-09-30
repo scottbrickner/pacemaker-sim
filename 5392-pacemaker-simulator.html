@@ -180,6 +180,11 @@
   .practice-scorecard{margin:10px 0}
   .practice-scorecard .sc-row{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid #171c24;font-size:12.5px}
   .practice-scorecard .sc-row:last-child{border-bottom:none}
+  .practice-scorecard .sc-label{flex:1 1 auto;min-width:0}
+  .practice-scorecard .sc-detail{display:block;font-size:11px;color:#7c93ad;margin-top:2px}
+  .practice-scorecard .sc-overall{font-size:13.5px;font-weight:700;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid #222a33}
+  .tag.partial{background:#241d0a;border-color:#6e5514;color:#e0b75a}
+  #practiceStepInfo{font-size:12px;color:#8b97a6;margin-top:6px;line-height:1.5}
 
   /* ===== MONITOR (rhythm-strip framing) ===== */
   .monitor{background:#05060a;border:1px solid #1a1f27;border-radius:var(--radius-lg);padding:var(--space-4) var(--space-5);
@@ -410,7 +415,8 @@
       <span><i style="background:var(--spikeV)"></i>Ventricular pace spike</span>
     </div>
     <div class="hintbox" id="coach" role="status" aria-live="polite">Press the green power button to begin. Note: the bridging cables are <b>not plugged into the generator</b> yet — click the A and V sockets on top of the device to connect them before pacing will work.</div>
-    <div class="frow" id="practiceBar" style="display:none;margin-top:10px;gap:8px">
+    <div class="frow" id="practiceBar" style="display:none;margin-top:10px;gap:8px;flex-wrap:wrap;align-items:center">
+      <div id="practiceStepInfo" style="flex:1 1 100%"></div>
       <button class="sbtn" id="practiceFinish" type="button">Finish attempt &amp; see debrief</button>
     </div>
   </div>
@@ -1822,7 +1828,7 @@ const _debriefClear=$('debriefClear'); if(_debriefClear) _debriefClear.onclick=(
 const PRACTICE={
   active:false, category:null, feedbackMode:'training', // 'training' (Guided Practice) | 'validation'
   learnerName:'', learnerEmail:'',
-  logStartIdx:0, startedAt:0
+  logStartIdx:0, startedAt:0, lastGrade:null
 };
 
 const PRACTICE_CATEGORIES={
@@ -1856,12 +1862,214 @@ const PRACTICE_CATEGORIES={
 /* Temporary fixed instances — not randomized yet (see P2/P3/P3b above). */
 const PRACTICE_SMOKE_TEST={
   setup:{rhythm:'chb',aRate:90,vRate:35,aThr:1.0,vThr:1.5,aSig:2.5,vSig:10},
-  threshold:{rhythm:'sbrady',aRate:50,vRate:50,vThr:2.0,vSig:8,aThr:1.0,aSig:2.5},
+  threshold:{rhythm:'sbrady',aRate:50,vRate:50,vThr:2.0,vSig:8,aThr:1.0,aSig:2.5}, // superseded by randomizeThresholdCase() below; kept for reference
   troubleshoot:{rhythm:'chb',aRate:84,vRate:38,vThr:1.5}
 };
 
-function isPracticeEmailValid(v){ return /^[^\s@]+@med\.usc\.edu$/i.test(String(v||'').trim()); }
+/* ===== P2: Threshold Trainer — real randomization + auto-grading =====
+   Inline mirror of learner-practice-data.json -> thresholdTrainer + rubrics.threshold, same
+   lock-step convention PACESCN already uses for pace-scenarios.json (this file has no fetch()
+   calls anywhere — JSON data lives here too). Values copied verbatim from that file. */
 
+const THRESHOLD_DRILLS=[
+  {id:'v_stim',channel:'V',kind:'stimulation',label:'Ventricular capture threshold'},
+  {id:'a_stim',channel:'A',kind:'stimulation',label:'Atrial capture threshold'},
+  {id:'v_sense',channel:'V',kind:'sensing',label:'Ventricular sensing threshold'},
+  {id:'a_sense',channel:'A',kind:'sensing',label:'Atrial sensing threshold'}
+];
+const THRESHOLD_RAND={
+  captureThresholdMa:[ {band:[0.5,2.5],weight:0.55}, {band:[2.5,5],weight:0.25}, {band:[5,10],weight:0.15}, {band:[10,15],weight:0.05} ],
+  pWaveSignalMv:[ {band:[1.5,4],weight:0.7}, {band:[0.6,1.5],weight:0.3} ],
+  rWaveSignalMv:[ {band:[5,14],weight:0.7}, {band:[2,5],weight:0.3} ],
+  underlyingRhythmByDrill:{ v_stim:['sbrady','avb1','chb'], a_stim:['sbrady','avb1'], v_sense:['sinus','sbrady','pvc'], a_sense:['sinus','sbrady'] }
+};
+/* every randomized case sets these alongside the randomized field, since set() only auto-backfills
+   aRate (never vRate) from the rhythm default — every existing caller in this file already passes
+   both explicitly, and this must too, or P.vRate leaks a stale value across attempts. */
+const THRESHOLD_BASE_DEFAULTS={aThr:1.0,vThr:1.5,aSig:2.5,vSig:8};
+const THRESHOLD_TOLERANCES={captureThresholdMa:0.5,sensingThresholdIdx:1};
+const THRESHOLD_MARGIN={ stimAcceptable:[2,2.5], stimOverAt:2.6, senseMaxFraction:0.5, senseOverAt:0.7 };
+const THRESHOLD_SCENARIO_FRAMES=[
+  {drill:'v_stim',frame:'POD 2, V-paced. Verify the ventricular capture threshold and set a safe output before the team rounds.'},
+  {drill:'v_stim',frame:'Threshold looked higher on the last check — reconfirm ventricular capture and set your margin.'},
+  {drill:'a_stim',frame:'Dual-chamber setup — confirm the atrial capture threshold and set a safe output.'},
+  {drill:'v_sense',frame:'The patient has their own rhythm — confirm the generator senses the ventricle before you leave it on demand.'},
+  {drill:'v_sense',frame:'Small-looking R waves on the strip — find the ventricular sensing threshold and set a safe sensitivity.'},
+  {drill:'a_sense',frame:'Confirm atrial sensing so tracking behaves before you hand off.'}
+];
+const THRESHOLD_RUBRIC=[
+  {key:'procedure',label:'Correct procedure',weight:0.25,passWhen:'rate set appropriately before testing; correct channel; non-pacing for sensing, pacing for stimulation'},
+  {key:'identification',label:'Threshold identified',weight:0.3,passWhen:'identified value within tolerance of the hidden ground-truth'},
+  {key:'margin',label:'Safe margin set',weight:0.3,passWhen:'output = 2x threshold (double; local training standard, not 3x) OR sensitivity <= 1/2 signal (sensing)'},
+  {key:'safety',label:'Safety & recognition',weight:0.15,passWhen:'no dependent patient stranded; recognized/flagged a high or bad-wire threshold; sensitivity not left undersensing'}
+];
+const PF_RATE_MARGIN_PPM=8, PF_MIN_TEST_OUTPUT=2.0;
+
+/* ----- generic stepped-flow engine (reusable by later phases — not threshold-specific) ----- */
+const PRACTICE_FLOW={active:false, steps:[], stepIdx:0, data:{}};
+
+function practiceFlowStart(steps,data){
+  PRACTICE_FLOW.active=true; PRACTICE_FLOW.steps=steps; PRACTICE_FLOW.stepIdx=0; PRACTICE_FLOW.data=data;
+  if(PRACTICE.feedbackMode==='validation') coach('Validation attempt in progress — work the device; your steps are scored in the debrief.');
+  renderPracticeStepInfo();
+  if(steps[0]) practiceCoach(steps[0].instruction);
+}
+function practiceFlowCheck(){
+  if(!PRACTICE_FLOW.active) return;
+  const st=PRACTICE_FLOW.steps[PRACTICE_FLOW.stepIdx];
+  if(!st || !st.checkComplete()) return;
+  PRACTICE_FLOW.data.stepDone=PRACTICE_FLOW.data.stepDone||[];
+  PRACTICE_FLOW.data.stepDone[PRACTICE_FLOW.stepIdx]=true;
+  if(st.onComplete) st.onComplete();
+  logEvent('outcome','Step complete: '+st.key,'ok');
+  PRACTICE_FLOW.stepIdx++;
+  const next=PRACTICE_FLOW.steps[PRACTICE_FLOW.stepIdx];
+  if(next){ renderPracticeStepInfo(); practiceCoach(next.instruction); }
+  else {
+    PRACTICE_FLOW.active=false;
+    practiceCoach('All steps complete — opening your debrief.');
+    renderPracticeStepInfo();
+    setTimeout(finishPracticeAttempt,600);
+  }
+}
+function renderPracticeStepInfo(){
+  const box=$('practiceStepInfo'); if(!box) return;
+  if(!PRACTICE_FLOW.active){ box.textContent=''; return; }
+  const n=PRACTICE_FLOW.steps.length, i=PRACTICE_FLOW.stepIdx+1;
+  const st=PRACTICE_FLOW.steps[PRACTICE_FLOW.stepIdx];
+  box.textContent = PRACTICE.feedbackMode==='training'
+    ? 'Step '+i+' of '+n+' — '+(st?st.instruction:'')
+    : 'Step '+i+' of '+n;
+}
+function practiceCheck(){
+  if(PRACTICE.category==='threshold') practiceFlowCheck();
+}
+function practiceCoach(t,sev){
+  if(PRACTICE.feedbackMode==='training') coach(t);
+  else logEvent('action',t,sev);
+}
+
+/* ----- weighted-band sampling (pedagogical randomization, not clinical logic) ----- */
+function weightedPick(bands){
+  const total=bands.reduce((s,b)=>s+b.weight,0);
+  let r=Math.random()*total;
+  for(const b of bands){ if((r-=b.weight)<=0){ const lo=b.band[0],hi=b.band[1]; return lo+Math.random()*(hi-lo); } }
+  const last=bands[bands.length-1].band; return last[0]+Math.random()*(last[1]-last[0]);
+}
+function round1(v){ return Math.round(v*10)/10; }
+/* nearest A_SENS/V_SENS index for a given mV value — small local helper (no existing mV->index
+   snap function in this file); used only for sensing-identification grading, never for device state. */
+function nearestSensIdx(table,mv){
+  let best=0,bestDiff=Infinity;
+  table.forEach((v,i)=>{ if(v==='ASYNC') return; const d=Math.abs(v-mv); if(d<bestDiff){bestDiff=d;best=i;} });
+  return best;
+}
+
+function randomizeThresholdCase(drillId){
+  const drill=THRESHOLD_DRILLS.find(d=>d.id===drillId);
+  const rhythms=THRESHOLD_RAND.underlyingRhythmByDrill[drillId];
+  const rhythm=rhythms[Math.floor(Math.random()*rhythms.length)];
+  const base=RHY[rhythm];
+  const setArgs=Object.assign({},THRESHOLD_BASE_DEFAULTS,{rhythm,aRate:base.aDef,vRate:base.vDef});
+  let hiddenValue;
+  if(drill.kind==='stimulation'){
+    hiddenValue=round1(weightedPick(THRESHOLD_RAND.captureThresholdMa));
+    setArgs[drill.channel==='V'?'vThr':'aThr']=hiddenValue;
+  } else {
+    const bands=drill.channel==='V'?THRESHOLD_RAND.rWaveSignalMv:THRESHOLD_RAND.pWaveSignalMv;
+    hiddenValue=round1(weightedPick(bands));
+    setArgs[drill.channel==='V'?'vSig':'aSig']=hiddenValue;
+  }
+  const frames=THRESHOLD_SCENARIO_FRAMES.filter(f=>f.drill===drillId);
+  const frameText=frames.length?frames[Math.floor(Math.random()*frames.length)].frame:drill.label;
+  return {drill,setArgs,frameText,hiddenValue};
+}
+
+/* ----- step sequences ----- */
+function intrinsicRateFor(rc){
+  const ch=rc.drill.channel;
+  if(ch==='V' && RHY[P.rhythm].conduct==='none') return P.vRate;  // true independent escape (e.g. chb)
+  return P.aRate;                                                  // conducted rhythms track the atrial rate
+}
+function buildStimulationSteps(rc){
+  const ch=rc.drill.channel;
+  const out=()=>ch==='V'?S.vOut:S.aOut;
+  const thr=()=>ch==='V'?P.vThr:P.aThr;
+  const paceFlag=()=>MODES[S.mode][ch==='V'?'pV':'pA']===1;
+  return [
+    {key:'rate',instruction:'Set the rate above the intrinsic rhythm so every beat is paced.',
+      checkComplete:()=>S.power&&paceFlag()&&S.rate>intrinsicRateFor(rc)+PF_RATE_MARGIN_PPM},
+    {key:'lose_capture',instruction:'Lower the output until you lose capture (spike with no complex).',
+      checkComplete:()=>S.power&&out()>0&&out()<thr()},
+    {key:'find_threshold',instruction:'Raise the output until every spike captures again — that is the threshold.',
+      checkComplete:()=>out()>=thr(),
+      onComplete:()=>{ PRACTICE_FLOW.data.identifiedValue=out(); }},
+    {key:'set_margin',instruction:'Set the output to a safe margin — double the threshold you found.',
+      checkComplete:()=>{ const id=PRACTICE_FLOW.data.identifiedValue; if(!id) return false; const ratio=out()/id; return ratio>=THRESHOLD_MARGIN.stimAcceptable[0]&&ratio<=THRESHOLD_MARGIN.stimOverAt; }}
+  ];
+}
+function buildSensingSteps(rc){
+  const ch=rc.drill.channel;
+  const out=()=>ch==='V'?S.vOut:S.aOut;
+  const sensMv=()=>ch==='V'?vSensMv():aSensMv();
+  const sig=()=>ch==='V'?P.vSig:P.aSig;
+  const senseFlag=()=>MODES[S.mode][ch==='V'?'sV':'sA']===1;
+  const hasIntrinsic=()=>ch==='V'?hasIntrinsicV():hasIntrinsicA();
+  return [
+    {key:'prep',instruction:'Set the rate below intrinsic and output minimal — you are testing sensing, not pacing.',
+      checkComplete:()=>S.power&&senseFlag()&&S.rate<intrinsicRateFor(rc)-PF_RATE_MARGIN_PPM&&out()<=PF_MIN_TEST_OUTPUT&&hasIntrinsic()},
+    {key:'lose_sense',instruction:'Make it less sensitive (raise the mV) until it stops sensing.',
+      checkComplete:()=>sensMv()!==Infinity&&sensMv()>sig()},
+    {key:'find_threshold',instruction:'Make it more sensitive again until sensing resumes — that is the threshold.',
+      checkComplete:()=>sensMv()<=sig(),
+      onComplete:()=>{ PRACTICE_FLOW.data.identifiedValue=sensMv(); PRACTICE_FLOW.data.identifiedIdx=ch==='V'?S.vSensIdx:S.aSensIdx; }},
+    {key:'set_margin',instruction:'Set sensitivity to half (or less) of what you found.',
+      checkComplete:()=>{ const id=PRACTICE_FLOW.data.identifiedValue; if(!id) return false; return sensMv()<=id*THRESHOLD_MARGIN.senseMaxFraction; }}
+  ];
+}
+
+function startThresholdAttempt(){
+  const drillId=THRESHOLD_DRILLS[Math.floor(Math.random()*THRESHOLD_DRILLS.length)].id;
+  const rc=randomizeThresholdCase(drillId);
+  set(rc.setArgs);
+  practiceCoach(rc.frameText);
+  const steps = rc.drill.kind==='stimulation' ? buildStimulationSteps(rc) : buildSensingSteps(rc);
+  practiceFlowStart(steps, {drill:rc.drill, hiddenValue:rc.hiddenValue, identifiedValue:null, identifiedIdx:null});
+}
+
+/* ----- grading (rubrics.threshold, verbatim weights/passWhen) ----- */
+function gradeThresholdAttempt(fd){
+  const ch=fd.drill.channel, kind=fd.drill.kind;
+  const out=()=>ch==='V'?S.vOut:S.aOut;
+  const thr=()=>ch==='V'?P.vThr:P.aThr;
+  const sensMv=()=>ch==='V'?vSensMv():aSensMv();
+  const sig=()=>ch==='V'?P.vSig:P.aSig;
+  const table=ch==='V'?V_SENS:A_SENS;
+  const cats={};
+  cats.procedure=(fd.stepDone&&fd.stepDone[0])?'pass':'fail';
+  if(kind==='stimulation'){
+    cats.identification = fd.identifiedValue==null ? 'fail'
+      : Math.abs(fd.identifiedValue-thr())<=THRESHOLD_TOLERANCES.captureThresholdMa ? 'pass' : 'partial';
+    if(fd.identifiedValue==null) cats.margin='fail';
+    else { const ratio=out()/fd.identifiedValue;
+      cats.margin = (ratio>=THRESHOLD_MARGIN.stimAcceptable[0]&&ratio<=THRESHOLD_MARGIN.stimAcceptable[1]) ? 'pass'
+        : (ratio>THRESHOLD_MARGIN.stimAcceptable[1]&&ratio<THRESHOLD_MARGIN.stimOverAt) ? 'partial' : 'fail'; }
+    cats.safety = out()>=thr() ? 'pass' : 'fail';
+  } else {
+    cats.identification = fd.identifiedIdx==null ? 'fail'
+      : Math.abs(fd.identifiedIdx-nearestSensIdx(table,sig()))<=THRESHOLD_TOLERANCES.sensingThresholdIdx ? 'pass' : 'partial';
+    if(fd.identifiedValue==null) cats.margin='fail';
+    else { const frac=sensMv()/fd.identifiedValue;
+      cats.margin = frac<=THRESHOLD_MARGIN.senseMaxFraction ? 'pass' : frac<=THRESHOLD_MARGIN.senseOverAt ? 'partial' : 'fail'; }
+    cats.safety = (sensMv()!==Infinity && sensMv()<=sig()) ? 'pass' : 'fail';
+  }
+  const score={pass:1,partial:0.5,fail:0};
+  const overallPercent=Math.round(THRESHOLD_RUBRIC.reduce((s,r)=>s+r.weight*score[cats[r.key]],0)*100);
+  const passed = cats.identification==='pass' && cats.margin==='pass' && cats.safety!=='fail';
+  return {categories:cats, overallPercent, passed};
+}
+
+function isPracticeEmailValid(v){ return /^[^\s@]+@med\.usc\.edu$/i.test(String(v||'').trim()); }
 function updatePracticeStartEnabled(){
   const btn=$('practiceStart'); if(!btn) return;
   const idOk = PRACTICE.feedbackMode==='training' || ((($('practiceName').value||'').trim()) && isPracticeEmailValid($('practiceEmail').value));
@@ -1910,6 +2118,13 @@ function renderPracticeEventLog(){
 function renderPracticeScorecard(){
   const box=$('practiceScorecard'); if(!box || !PRACTICE.category) return;
   const cat=PRACTICE_CATEGORIES[PRACTICE.category];
+  if(PRACTICE.category==='threshold' && PRACTICE.lastGrade){
+    const g=PRACTICE.lastGrade;
+    const badge=s=>'<span class="tag '+(s==='pass'?'ok':s==='partial'?'partial':'warn')+'">'+s.toUpperCase()+'</span>';
+    box.innerHTML = '<div class="sc-overall">'+(g.passed?'✓ Passed':'Not yet passing')+' — '+g.overallPercent+'%</div>'
+      + THRESHOLD_RUBRIC.map(r=>'<div class="sc-row"><span class="sc-label">'+escHtml(r.label)+'<span class="sc-detail">'+escHtml(r.passWhen)+'</span></span>'+badge(g.categories[r.key])+'</div>').join('');
+    return;
+  }
   box.innerHTML='<div class="note">Auto-grading isn’t built yet for this phase — review the checklist below against what you saw and did.</div>'
     + cat.competentIf.map(c=>'<div class="sc-row"><span>'+escHtml(c)+'</span></div>').join('');
 }
@@ -1921,18 +2136,27 @@ function startPracticeAttempt(){
   PRACTICE.learnerEmail=($('practiceEmail').value||'').trim();
   PRACTICE.logStartIdx=EVENT_LOG.length;
   PRACTICE.startedAt=Date.now();
+  PRACTICE.lastGrade=null;
   closePracticeHome();
   const pb=$('practiceBar'); if(pb) pb.style.display='';
   resetFaultsAndConnections();
-  set(PRACTICE_SMOKE_TEST[PRACTICE.category]);
-  coach('Practice attempt started: '+PRACTICE_CATEGORIES[PRACTICE.category].label+'. (This phase runs a fixed setup — randomized cases arrive in a later update.) Work the device, then press “Finish attempt” when done.');
+  if(PRACTICE.category==='threshold'){
+    startThresholdAttempt();
+  } else {
+    set(PRACTICE_SMOKE_TEST[PRACTICE.category]);
+    coach('Practice attempt started: '+PRACTICE_CATEGORIES[PRACTICE.category].label+'. (This phase runs a fixed setup — randomized cases arrive in a later update.) Work the device, then press “Finish attempt” when done.');
+  }
 }
 
 function finishPracticeAttempt(){
   if(!PRACTICE.active) return;
   PRACTICE.active=false;
+  PRACTICE_FLOW.active=false;
   const pb=$('practiceBar'); if(pb) pb.style.display='none';
+  renderPracticeStepInfo();
   const cat=PRACTICE_CATEGORIES[PRACTICE.category];
+  PRACTICE.lastGrade = (PRACTICE.category==='threshold' && PRACTICE_FLOW.data && PRACTICE_FLOW.data.drill)
+    ? gradeThresholdAttempt(PRACTICE_FLOW.data) : null;
   $('practiceDebriefTitle').textContent='Debrief — '+cat.label;
   $('practiceDebriefSub').textContent=(PRACTICE.feedbackMode==='training'?'Guided Practice':'Validation')+' attempt'+(PRACTICE.learnerName?' — '+PRACTICE.learnerName:'')+'.';
   renderPracticeScorecard();
@@ -2297,7 +2521,9 @@ let acc=0,last=performance.now();
 function loop(now){ let dtr=now-last; last=now; if(dtr>120)dtr=120; acc+=dtr;
   while(acc>=DT){ step(); acc-=DT; }
   drawEcg(); $('hrNum').textContent=S.power?(currentHR()||'--'):'--';
-  renderUpper(); updateAnnun(); requestAnimationFrame(loop); }
+  renderUpper(); updateAnnun();
+  if(ROLE==='practice' && PRACTICE.active) practiceCheck();
+  requestAnimationFrame(loop); }
 /* ========= DUAL-SCREEN SYNC ========= */
 const SYNC_S=['power','locked','mode','rate','aOut','vOut','aSensIdx','vSensIdx','avi','upper','pvarp','aTrack','rapRate','screen','selMode','selParam'];
 function snapState(){ const s={}; SYNC_S.forEach(k=>s[k]=S[k]); return JSON.stringify({s,P,conn,N}); }
