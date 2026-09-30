@@ -185,6 +185,16 @@
   .practice-scorecard .sc-overall{font-size:13.5px;font-weight:700;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid #222a33}
   .tag.partial{background:#241d0a;border-color:#6e5514;color:#e0b75a}
   #practiceStepInfo{font-size:12px;color:#8b97a6;margin-top:6px;line-height:1.5}
+  .practice-mcq{margin-top:8px}
+  .pmcq-stem{font-size:12.5px;color:#c7d0da;margin-bottom:6px;line-height:1.4}
+  .pmcq-options{display:flex;flex-direction:column;gap:6px}
+  .pmcq-opt{font-size:12.5px;text-align:left;padding:8px 10px;border-radius:8px;border:1px solid #2a333d;background:#161c24;color:#dbe3ec;cursor:pointer;font:inherit}
+  .pmcq-opt:hover:not(:disabled){border-color:#3b82f6;background:#18222e}
+  .pmcq-opt:disabled{cursor:not-allowed;opacity:.85}
+  .pmcq-opt.correct{border-color:#1f5e38;background:#0f2417;color:#5fe089}
+  .pmcq-opt.incorrect{border-color:#7a2a1e;background:#2a1410;color:#ff8a72}
+  .pmcq-opt.selected{box-shadow:0 0 0 2px #5db4ff inset}
+  .pmcq-feedback{font-size:12px;color:#8b97a6;margin-top:6px;line-height:1.4}
 
   /* ===== MONITOR (rhythm-strip framing) ===== */
   .monitor{background:#05060a;border:1px solid #1a1f27;border-radius:var(--radius-lg);padding:var(--space-4) var(--space-5);
@@ -417,6 +427,7 @@
     <div class="hintbox" id="coach" role="status" aria-live="polite">Press the green power button to begin. Note: the bridging cables are <b>not plugged into the generator</b> yet — click the A and V sockets on top of the device to connect them before pacing will work.</div>
     <div class="frow" id="practiceBar" style="display:none;margin-top:10px;gap:8px;flex-wrap:wrap;align-items:center">
       <div id="practiceStepInfo" style="flex:1 1 100%"></div>
+      <div id="practiceMcq" class="practice-mcq" style="display:none;flex:1 1 100%"></div>
       <button class="sbtn" id="practiceFinish" type="button">Finish attempt &amp; see debrief</button>
     </div>
   </div>
@@ -583,6 +594,7 @@
         <option value="pod1_aflutter_rap">PACE 9 · New atrial flutter — overdrive pacing (RAP)</option>
         <option value="cticu_oversensing_pauses">PACE 10 · Pauses with no spikes — oversensing</option>
         <option value="cticu_v_cable_disconnect">PACE 11 · Pacing just stopped — disconnected cable</option>
+        <option value="pod0_asystole_underlying_check">PACE 12 · Check the underlying rhythm — post-op asystole</option>
       </optgroup>
     </select>
     <div class="scn" id="scnNav" style="display:none">
@@ -1165,12 +1177,15 @@ let enterHold=null;
 function startEnterHold(){ if(S.screen==='rap'&&S.power&&!S.locked){ enterHold=setTimeout(()=>{ S.rapDelivering=true; buzz(30); coach('● Delivering Rapid Atrial Pacing at '+S.rapRate+' ppm (AOO). Release Enter to stop.'); render(); },RAP_HOLD_MS); } }
 $('enterBtn').addEventListener('pointerdown',startEnterHold);
 function stopRap(){ if(enterHold){clearTimeout(enterHold);enterHold=null;} if(S.rapDelivering){ S.rapDelivering=false;
+  if(PRACTICE.active&&PRACTICE_FLOW.active) PRACTICE_FLOW.data.rapAttempted=true;
   if(P.rhythm==='aflutter'&&S.rapRate>=RAP_FLUTTER_TERMINATION_PPM){ P.rhythm='sinus';P.aRate=75;P.vRate=0; syncFac(); coach('RAP burst terminated the flutter — sinus rhythm restored. (Not all flutter converts; monitor closely.)'); }
   else coach('RAP burst ended; pacing resumed at previous settings.'); render(); } }
 window.addEventListener('pointerup',stopRap);
 $('enterBtn').addEventListener('keydown',e=>{ if((e.key==='Enter'||e.key===' ')&&!e.repeat){ e.preventDefault(); startEnterHold(); $('enterBtn').click(); } });
 window.addEventListener('keyup',e=>{ if(e.key==='Enter'||e.key===' ') stopRap(); });
-function startPause(){ if(!guard())return; S.paused=true; S.pauseUntil=T+PAUSE_MAX_MS; buzz(15); coach('Pacing & sensing suspended (≤10 s) — observe the underlying rhythm. Release to resume.'); }
+function startPause(){ if(!guard())return; S.paused=true; S.pauseUntil=T+PAUSE_MAX_MS; buzz(15);
+  if(PRACTICE.active&&PRACTICE_FLOW.active) PRACTICE_FLOW.data.usedPause=true;
+  coach('Pacing & sensing suspended (≤10 s) — observe the underlying rhythm. Release to resume.'); }
 $('pauseBtn').addEventListener('pointerdown',startPause);
 function endPause(){ if(S.paused){ S.paused=false; coach('Pacing resumed.'); } }
 $('pauseBtn').addEventListener('pointerup',endPause); $('pauseBtn').addEventListener('pointercancel',endPause);
@@ -1596,6 +1611,12 @@ const PACESCN={
       policy:{bestPractice:'Systematic circuit check for loss of output; verify audible click and gentle tug at each connection; transcutaneous backup for dependent patients.',reconcile:['Your standard for securing/labeling pacing connections and cable-change practice.','Who is notified for a connection-related pacing failure.']},
       references:['Medtronic 5392 Reference Guide (tip card)','Medtronic 5392 Compatibility Components guide','Temporary epicardial pacing after cardiac surgery (PMC10433321)']
     }},
+  pod0_asystole_underlying_check:{name:'PACE 12 · Check the underlying rhythm — post-op asystole',level:'icu',
+    steps:[
+      {label:'Step 1/3 — Handoff: no underlying rhythm',coach:'Fresh post-op in the unit, fully paced. Handoff endorses that when the pacer was briefly tested in the OR the patient had NO underlying rhythm — asystole. You’re asked to reassess whether any underlying rhythm has returned. How will you do that safely?',set:{rhythm:'asystole',vRate:0,vThr:1.5}},
+      {label:'Step 2/3 — Explore safely',coach:'With continuous ECG and arterial monitoring and transcutaneous pacing plus a defibrillator ready, GRADUALLY step the paced rate down — or use a brief Pause — to look for any intrinsic rhythm. Do NOT unplug the bridging cables. What do you see, and what’s your plan if nothing appears?',set:{rhythm:'asystole',vRate:0}},
+      {label:'Step 3/3 — Persistent asystole, restore pacing',coach:'No underlying rhythm emerges — the patient remains fully dependent. Promptly restore the paced rate, confirm capture, keep backup pacing immediately available, and document continued pacemaker dependence.',set:{rhythm:'asystole',vRate:0}},
+    ]},
 };
 
 /* connection/cable faults a stepped scenario can inject — generalizes the pattern the existing
@@ -1911,21 +1932,33 @@ const PRACTICE_FLOW={active:false, steps:[], stepIdx:0, data:{}};
 function practiceFlowStart(steps,data){
   PRACTICE_FLOW.active=true; PRACTICE_FLOW.steps=steps; PRACTICE_FLOW.stepIdx=0; PRACTICE_FLOW.data=data;
   if(PRACTICE.feedbackMode==='validation') coach('Validation attempt in progress — work the device; your steps are scored in the debrief.');
+  if(steps[0] && steps[0].onEnter) steps[0].onEnter();
   renderPracticeStepInfo();
-  if(steps[0]) practiceCoach(steps[0].instruction);
+  if(steps[0] && steps[0].type!=='mcq') practiceCoach(steps[0].instruction);
 }
+/* device-type steps (default, threshold's only type) are polled every frame here; mcq-type steps
+   are skipped by the poll entirely and instead advanced by practiceMcqAnswer() on click. */
 function practiceFlowCheck(){
   if(!PRACTICE_FLOW.active) return;
   const st=PRACTICE_FLOW.steps[PRACTICE_FLOW.stepIdx];
-  if(!st || !st.checkComplete()) return;
+  if(!st || st.type==='mcq' || !st.checkComplete()) return;
+  if(st.onComplete) st.onComplete();
+  practiceFlowAdvance();
+}
+/* shared advance/finish tail — called by practiceFlowCheck() for device steps and by
+   practiceMcqAnswer() for mcq steps, so both step types finish an attempt the same way. */
+function practiceFlowAdvance(){
+  const st=PRACTICE_FLOW.steps[PRACTICE_FLOW.stepIdx];
   PRACTICE_FLOW.data.stepDone=PRACTICE_FLOW.data.stepDone||[];
   PRACTICE_FLOW.data.stepDone[PRACTICE_FLOW.stepIdx]=true;
-  if(st.onComplete) st.onComplete();
   logEvent('outcome','Step complete: '+st.key,'ok');
   PRACTICE_FLOW.stepIdx++;
   const next=PRACTICE_FLOW.steps[PRACTICE_FLOW.stepIdx];
-  if(next){ renderPracticeStepInfo(); practiceCoach(next.instruction); }
-  else {
+  if(next){
+    if(next.onEnter) next.onEnter();
+    renderPracticeStepInfo();
+    if(next.type!=='mcq') practiceCoach(next.instruction);
+  } else {
     PRACTICE_FLOW.active=false;
     practiceCoach('All steps complete — opening your debrief.');
     renderPracticeStepInfo();
@@ -1934,15 +1967,52 @@ function practiceFlowCheck(){
 }
 function renderPracticeStepInfo(){
   const box=$('practiceStepInfo'); if(!box) return;
-  if(!PRACTICE_FLOW.active){ box.textContent=''; return; }
+  if(!PRACTICE_FLOW.active){ box.textContent=''; renderPracticeMcqBox(); return; }
   const n=PRACTICE_FLOW.steps.length, i=PRACTICE_FLOW.stepIdx+1;
   const st=PRACTICE_FLOW.steps[PRACTICE_FLOW.stepIdx];
-  box.textContent = PRACTICE.feedbackMode==='training'
-    ? 'Step '+i+' of '+n+' — '+(st?st.instruction:'')
-    : 'Step '+i+' of '+n;
+  const showInstruction = PRACTICE.feedbackMode==='training' && st && st.type!=='mcq';
+  box.textContent = 'Step '+i+' of '+n+(showInstruction?' — '+st.instruction:'');
+  renderPracticeMcqBox();
+}
+/* ----- MCQ step UI (recognition questions) ----- */
+function renderPracticeMcqBox(){
+  const box=$('practiceMcq'); if(!box) return;
+  const st=PRACTICE_FLOW.active?PRACTICE_FLOW.steps[PRACTICE_FLOW.stepIdx]:null;
+  if(!st || st.type!=='mcq'){ box.style.display='none'; box.innerHTML=''; return; }
+  box.style.display='';
+  box.innerHTML='<div class="pmcq-stem">'+escHtml(st.instruction)+'</div>'
+    +'<div class="pmcq-options">'+st.mcq.options.map((o,i)=>'<button type="button" class="pmcq-opt" data-idx="'+i+'">'+escHtml(o.label)+'</button>').join('')+'</div>'
+    +'<div class="pmcq-feedback" id="practiceMcqFeedback"></div>';
+  box.querySelectorAll('.pmcq-opt').forEach(btn=>{ btn.onclick=()=>practiceMcqAnswer(parseInt(btn.dataset.idx,10)); });
+}
+function renderPracticeMcqResult(st,idx){
+  const box=$('practiceMcq'); if(!box) return;
+  const btns=box.querySelectorAll('.pmcq-opt');
+  btns.forEach(b=>b.disabled=true);
+  if(PRACTICE.feedbackMode==='training'){
+    btns[idx].classList.add(st.mcq.options[idx].correct?'correct':'incorrect');
+    st.mcq.options.forEach((o,i)=>{ if(o.correct&&i!==idx) btns[i].classList.add('correct'); });
+    const fb=$('practiceMcqFeedback'); if(fb) fb.textContent=st.mcq.teaching||'';
+  } else {
+    btns[idx].classList.add('selected');
+  }
+}
+function practiceMcqAnswer(idx){
+  if(!PRACTICE_FLOW.active) return;
+  const st=PRACTICE_FLOW.steps[PRACTICE_FLOW.stepIdx];
+  if(!st || st.type!=='mcq' || PRACTICE_FLOW.data.mcqLocked) return;
+  PRACTICE_FLOW.data.mcqLocked=true;
+  const opt=st.mcq.options[idx];
+  PRACTICE_FLOW.data.mcqAnswers=PRACTICE_FLOW.data.mcqAnswers||[];
+  PRACTICE_FLOW.data.mcqAnswers.push({gradingKey:st.gradingKey,correct:!!opt.correct,selectedLabel:opt.label});
+  logEvent('outcome','Recognition answer: '+opt.label+(opt.correct?' (correct)':' (incorrect)'),opt.correct?'ok':'warn');
+  renderPracticeMcqResult(st,idx);
+  if(st.onComplete) st.onComplete();
+  const delay=PRACTICE.feedbackMode==='training'?1400:150;
+  setTimeout(()=>{ PRACTICE_FLOW.data.mcqLocked=false; practiceFlowAdvance(); },delay);
 }
 function practiceCheck(){
-  if(PRACTICE.category==='threshold') practiceFlowCheck();
+  if(PRACTICE.category==='threshold' || PRACTICE.category==='troubleshoot') practiceFlowCheck();
 }
 function practiceCoach(t,sev){
   if(PRACTICE.feedbackMode==='training') coach(t);
@@ -2069,8 +2139,208 @@ function gradeThresholdAttempt(fd){
   return {categories:cats, overallPercent, passed};
 }
 
-function isPracticeEmailValid(v){ return /^[^\s@]+@med\.usc\.edu$/i.test(String(v||'').trim()); }
-function updatePracticeStartEnabled(){
+/* ===== P3a: Troubleshooter — MCQ engine + 6 single-fault types =====
+   Inline mirror of learner-practice-data.json -> faultActionMap + rubrics.troubleshoot, same
+   lock-step convention as THRESHOLD_*. P3a covers the 6 fault types that map to a single curated
+   PACE case each with a learner-operable device fix: loss_of_capture, cable_disconnect,
+   undersensing, oversensing, aflutter_rap, underlying_rhythm_check. The two "recognize this is
+   normal" cases, the dual-fault emergency case, dependence_no_pacing, escalationGuidance, and a
+   generic action-trail logging extension are P3b (next phase) — not built here.
+   All 9 faultActionMap entries are inlined for completeness/future reuse even though P3a's case
+   config only references 6; battery has zero curated-case coverage in either phase (deferred to
+   the P4 procedural generator). escalationGuidance/mcqBank.actionStem/wrongActionPool are NOT
+   inlined — the action-choice MCQ they imply was explicitly ruled out this session (recognition
+   MCQ + a real device fix only), so half of the source mcqBank is intentionally unused. */
+
+const FAULT_ACTION_MAP={
+  loss_of_capture:{label:'Loss of capture',recognitionCorrect:'Loss of capture (pacing spikes present, no capture)',
+    recognitionDistractors:['Lead fracture','Oversensing','Normal demand inhibition','Failure to sense'],
+    correctActions:['Increase output to 2x the capture threshold (double, local training standard)','Ensure backup if the patient is dependent'],
+    teaching:'Spikes ARE present — the impulse fires but doesn’t capture. Doubling output (or finding a rising threshold) fixes it; contrast with fracture where spikes vanish. If maxed output won’t capture, stop cranking and escalate.'},
+  lead_fracture:{label:'Lead fracture',recognitionCorrect:'Lead fracture / broken wire (no pacing spikes)',
+    recognitionDistractors:['Loss of capture','Oversensing','Cable disconnected at generator','Battery depleted'],
+    correctActions:['Recognize it is not learner-fixable at the bedside','Escalate for wire replacement','Bridge with transcutaneous pacing if dependent'],
+    teaching:'No spikes = output isn’t reaching the heart. A fracture is inside the wire — unlike a cable disconnect, the learner can’t reconnect it.'},
+  cable_disconnect:{label:'Disconnected cable at generator',recognitionCorrect:'Cable disconnected at the generator (open circuit, no spikes)',
+    recognitionDistractors:['Lead fracture','Loss of capture','Oversensing','Battery depleted'],
+    correctActions:['Work the circuit generator->cable->terminal->wire','Reconnect the cable at the generator port (verify click + gentle tug)'],
+    teaching:'Looks like a fracture (no spikes) but is FIXABLE — reconnect at the generator. This is why cable-disconnect and fracture are distinct mechanics.'},
+  undersensing:{label:'Undersensing / competition',recognitionCorrect:'Undersensing — competitive pacing (spikes marching into intrinsic beats)',
+    recognitionDistractors:['Oversensing','Loss of capture','Normal pacing','Lead fracture'],
+    correctActions:['Increase sensitivity (LOWER the mV number) toward ~1/2 the R-wave','Confirm the generator now inhibits on intrinsic beats'],
+    teaching:'Device fails to see the patient’s beats and paces on top. Lower mV = more sensitive. Opposite fix to oversensing.'},
+  oversensing:{label:'Oversensing',recognitionCorrect:'Oversensing — inappropriate inhibition (pauses, no spikes when needed)',
+    recognitionDistractors:['Undersensing','Lead fracture','Loss of capture','Cable disconnected'],
+    correctActions:['Pace asynchronously (DOO/VOO) to guarantee output','Treat the noise source (shivering, loose connections)'],
+    teaching:'Device is fooled by noise and inhibits when the patient needs pacing. In this simulator the oversensing fault is independent of the sensitivity setting — raising the mV number alone will NOT resolve it; go asynchronous to guarantee pacing, then address the noise source.'},
+  dependence_no_pacing:{label:'Needs pacing now',recognitionCorrect:'Symptomatic bradycardia / dependence requiring pacing',
+    recognitionDistractors:['Stable, monitor only','Oversensing','Loss of capture','Undersensing'],
+    correctActions:['Recognize instability','Call for help / escalate','Initiate pacing per order or bridge transcutaneously'],
+    teaching:'The fault is the patient, not the device. Recognize the need, escalate, and (within scope) initiate pacing.'},
+  battery:{label:'Battery failing',recognitionCorrect:'Low / depleted battery',
+    recognitionDistractors:['Lead fracture','Loss of capture','Oversensing','Normal operation'],
+    correctActions:['Recognize the battery alarm/indicator','Replace battery/generator without interrupting a dependent patient'],
+    teaching:'Plan the swap so a dependent patient never loses pacing.'},
+  aflutter_rap:{label:'Atrial flutter — overdrive pacing',recognitionCorrect:'Atrial flutter',
+    recognitionDistractors:['Atrial fibrillation','Sinus tachycardia','VT','Junctional tachycardia'],
+    correctActions:['Confirm flutter (not AF)','Confirm order + defibrillator on the patient','Deliver RAP 20-30 ppm above the atrial rate for a brief hold'],
+    teaching:'Advanced, physician-directed. Recognition + safe setup matter as much as the delivery. RAP will not convert AF.'},
+  underlying_rhythm_check:{label:'Assess underlying rhythm (dependent patient)',recognitionCorrect:'Pacemaker-dependent — assess underlying rhythm SAFELY (do not unplug cables)',
+    recognitionDistractors:['Safe to unplug the bridging cables to check','No need to reassess — leave it paced','Increase output to test underlying rhythm','Oversensing'],
+    correctActions:['Gradually step the paced RATE down (or use a brief PAUSE) while watching the monitor','Keep continuous ECG + arterial monitoring and transcutaneous pacing/defib ready','NEVER unplug the bridging cables'],
+    teaching:'The safe way to look for a returning underlying rhythm in a dependent patient is to step the rate down gradually or use Pause under full monitoring — NOT to unplug the bridging cables, which strands a dependent patient.'}
+};
+const TROUBLESHOOT_RUBRIC=[
+  {key:'recognition',label:'Correct recognition',weight:0.3,passWhen:'picked the correct problem'},
+  {key:'priority_action',label:'Correct priority action',weight:0.3,passWhen:'chose the correct first action(s)'},
+  {key:'execution',label:'Correct execution on device',weight:0.25,passWhen:'engine detected the correct device action (capture/sensing/async/circuit)'},
+  {key:'safety',label:'Safety',weight:0.15,passWhen:'recognized dependence, used a bridge, avoided harmful actions'}
+];
+const MCQ_RECOGNITION_STEM='Look at the monitor and the device. What is happening?';
+const NO_FAULT_LABEL='Normal — no fault, no action needed';
+const TROUBLESHOOT_SAFETY_CEILING_MS=90000;
+
+/* caseKey -> {fault, channel, faultStepIdx, randomize?} — channel/randomize null where not
+   applicable (rhythm-level faults with no A/V split, or nothing re-randomized this case). */
+const TROUBLESHOOT_CASE_CONFIG={
+  pod3_threshold_drift_loc:      {fault:'loss_of_capture',       channel:'V', faultStepIdx:1, randomize:'vThr'},
+  pod4_capture_threshold_drift:  {fault:'loss_of_capture',       channel:'V', faultStepIdx:1, randomize:'vThr'},
+  pcu_undersensing_competition:  {fault:'undersensing',          channel:'V', faultStepIdx:0, randomize:'vSig'},
+  cticu_oversensing_pauses:      {fault:'oversensing',           channel:'V', faultStepIdx:1, randomize:null},
+  cticu_v_cable_disconnect:      {fault:'cable_disconnect',      channel:'V', faultStepIdx:1, randomize:null},
+  pod1_aflutter_rap:             {fault:'aflutter_rap',          channel:null,faultStepIdx:0, randomize:null},
+  pod3_underlying_rhythm_check:  {fault:'underlying_rhythm_check',channel:null,faultStepIdx:0, randomize:null},
+  pod0_asystole_underlying_check:{fault:'underlying_rhythm_check',channel:null,faultStepIdx:0, randomize:null}
+};
+const TROUBLESHOOT_CURATED_KEYS=Object.keys(TROUBLESHOOT_CASE_CONFIG);
+let TROUBLESHOOT_RECENT=[];
+function pickNextTroubleshootCase(){
+  const avoid=new Set(TROUBLESHOOT_RECENT.slice(-2));
+  let pool=TROUBLESHOOT_CURATED_KEYS.filter(k=>!avoid.has(k));
+  if(!pool.length) pool=TROUBLESHOOT_CURATED_KEYS;
+  const key=pool[Math.floor(Math.random()*pool.length)];
+  TROUBLESHOOT_RECENT.push(key); if(TROUBLESHOOT_RECENT.length>4) TROUBLESHOOT_RECENT.shift();
+  return key;
+}
+
+function shuffleArr(a){ const b=a.slice(); for(let i=b.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); const t=b[i];b[i]=b[j];b[j]=t; } return b; }
+function buildRecognitionOptions(faultKey){
+  const fam=FAULT_ACTION_MAP[faultKey];
+  const distractors=shuffleArr(fam.recognitionDistractors).slice(0,2).map(label=>({label,correct:false}));
+  return shuffleArr([{label:fam.recognitionCorrect,correct:true},...distractors,{label:NO_FAULT_LABEL,correct:false}]);
+}
+function buildRecognitionMcqStep(faultKey){
+  const fam=FAULT_ACTION_MAP[faultKey];
+  return {key:'recognition',type:'mcq',gradingKey:'recognition',instruction:MCQ_RECOGNITION_STEM,
+    mcq:{options:buildRecognitionOptions(faultKey),teaching:fam.teaching}};
+}
+
+/* device-fix steps — every checkComplete reuses an inequality that already exists elsewhere in
+   the file (computeAnnunConditions, P2's threshold-drill steps, applyScenarioStep's own conn
+   target, or stopRap()'s deterministic flutter-conversion logic) — no new clinical math. Each
+   also updates PRACTICE_FLOW.data.priorityActionSeen the first time it observes the right kind
+   of change, as a lightweight, self-contained alternative to a generic action-trail (that
+   extension is P3b's concern, needed there for richer cases this phase doesn't cover). */
+function buildFixStep(faultKey,ch){
+  const out=()=>ch==='V'?S.vOut:S.aOut;
+  const thr=()=>ch==='V'?P.vThr:P.aThr;
+  const sensMv=()=>ch==='V'?vSensMv():aSensMv();
+  const sig=()=>ch==='V'?P.vSig:P.aSig;
+  const sensIdx=()=>ch==='V'?S.vSensIdx:S.aSensIdx;
+  if(faultKey==='loss_of_capture') return {key:'fix',type:'device',
+    instruction:'Increase output until capture is restored, then set a safe margin.',
+    checkComplete:()=>{ if(!PRACTICE_FLOW.data.priorityActionSeen&&out()>PRACTICE_FLOW.data.baselineOut) PRACTICE_FLOW.data.priorityActionSeen=true; return out()>=thr(); }};
+  if(faultKey==='cable_disconnect') return {key:'fix',type:'device',
+    instruction:'Work the circuit and reconnect the open point at the generator.',
+    checkComplete:()=>{ const ok=ch==='V'?conn.vGen:conn.aGen; if(!PRACTICE_FLOW.data.priorityActionSeen&&ok) PRACTICE_FLOW.data.priorityActionSeen=true; return ok; }};
+  if(faultKey==='undersensing') return {key:'fix',type:'device',
+    instruction:'Increase sensitivity (lower the mV number) until it senses the intrinsic beat.',
+    checkComplete:()=>{ if(!PRACTICE_FLOW.data.priorityActionSeen&&sensIdx()>PRACTICE_FLOW.data.baselineSensIdx) PRACTICE_FLOW.data.priorityActionSeen=true; return sensMv()<=sig(); }};
+  if(faultKey==='oversensing') return {key:'fix',type:'device',
+    instruction:'Switch to an asynchronous mode (DOO or VOO) to guarantee pacing, then address the noise source.',
+    checkComplete:()=>{ const ok=(S.mode==='DOO'||S.mode==='VOO'); if(!PRACTICE_FLOW.data.priorityActionSeen&&ok) PRACTICE_FLOW.data.priorityActionSeen=true; return ok; }};
+  if(faultKey==='aflutter_rap') return {key:'fix',type:'device',
+    instruction:'Confirm flutter, then deliver Rapid Atrial Pacing just above the atrial rate.',
+    checkComplete:()=>{ if(!PRACTICE_FLOW.data.priorityActionSeen&&PRACTICE_FLOW.data.rapAttempted) PRACTICE_FLOW.data.priorityActionSeen=true; return P.rhythm==='sinus'; }};
+  if(faultKey==='underlying_rhythm_check') return {key:'fix',type:'device',
+    instruction:'Gradually reduce the rate — or use Pause — under monitoring to check for a returning rhythm. Never unplug the cables.',
+    checkComplete:()=>{
+      if(!conn.vGen||!conn.vLead||!conn.aGen||!conn.aLead) PRACTICE_FLOW.data.unpluggedDuringCheck=true;
+      const ok=S.rate<PRACTICE_FLOW.data.rateFloor || PRACTICE_FLOW.data.usedPause;
+      if(!PRACTICE_FLOW.data.priorityActionSeen&&ok) PRACTICE_FLOW.data.priorityActionSeen=true;
+      return ok; }};
+}
+/* fault-moment observability fix (knob positioning only, applied once before the MCQ is shown —
+   never touches any clinical inequality). PACESCN's authored vThr/vSig values assume a live
+   facilitator at the knobs; without this, a randomized case could re-roll a value that isn't
+   actually observable against powerOn()'s resting defaults (S.vOut=10, S.vSensIdx=10≈1.5mV). */
+function applyFaultObservabilityFix(faultKey,ch){
+  if(faultKey==='loss_of_capture'){ if(ch==='V')S.vOut=0.2; else S.aOut=0.2; }
+  else if(faultKey==='undersensing'){ if(ch==='V')S.vSensIdx=1; else S.aSensIdx=1; }
+}
+
+function startTroubleshootAttempt(){
+  const caseKey=pickNextTroubleshootCase();
+  const cfg=TROUBLESHOOT_CASE_CONFIG[caseKey];
+  const src=PACESCN[caseKey];
+  const ch=cfg.channel;
+  powerOn();
+  setTimeout(()=>{
+    applyScenarioStep(src.steps[0]);
+    practiceCoach(src.steps[0].coach);
+
+    let faultStep=src.steps[cfg.faultStepIdx];
+    if(cfg.randomize){
+      const bands=cfg.randomize==='vThr'?THRESHOLD_RAND.captureThresholdMa:THRESHOLD_RAND.rWaveSignalMv;
+      faultStep=Object.assign({},faultStep,{set:Object.assign({},faultStep.set,{[cfg.randomize]:round1(weightedPick(bands))})});
+    }
+    if(cfg.faultStepIdx!==0 || cfg.randomize){
+      applyScenarioStep(faultStep);
+      if(cfg.faultStepIdx!==0) practiceCoach(faultStep.coach);
+    }
+    applyFaultObservabilityFix(cfg.fault,ch);
+
+    const data={
+      caseKey, fault:cfg.fault, channel:ch, faultPresentedAt:Date.now(),
+      baselineOut: ch?(ch==='V'?S.vOut:S.aOut):null,
+      baselineSensIdx: ch?(ch==='V'?S.vSensIdx:S.aSensIdx):null,
+      rateFloor: cfg.fault==='underlying_rhythm_check' ? (P.vRate>0?P.vRate-PF_RATE_MARGIN_PPM:50) : null,
+      priorityActionSeen:false, unpluggedDuringCheck:false, usedPause:false, rapAttempted:false, mcqAnswers:[]
+    };
+
+    const fixStep=buildFixStep(cfg.fault,ch);
+    fixStep.onComplete=()=>{ const resStep=src.steps[2]; if(resStep) practiceCoach(resStep.coach); };
+
+    practiceFlowStart([buildRecognitionMcqStep(cfg.fault), fixStep], data);
+  }, SELFTEST_MS+100);
+}
+
+function gradeTroubleshootAttempt(fd){
+  const cats={};
+  const mcq=(fd.mcqAnswers||[])[0];
+  cats.recognition = mcq ? (mcq.correct?'pass':'fail') : 'fail';
+  cats.priority_action = fd.priorityActionSeen ? 'pass' : 'fail';
+  cats.execution = (fd.stepDone && fd.stepDone[1]) ? 'pass' : 'fail';
+  if(fd.fault==='loss_of_capture' || fd.fault==='cable_disconnect'){
+    const fixed=fd.stepDone && fd.stepDone[1];
+    const elapsed=Date.now()-fd.faultPresentedAt;
+    cats.safety = !fixed ? 'fail' : (elapsed<=TROUBLESHOOT_SAFETY_CEILING_MS ? 'pass' : 'partial');
+  } else if(fd.fault==='undersensing' || fd.fault==='oversensing'){
+    cats.safety = (fd.stepDone && fd.stepDone[1]) ? 'pass' : 'fail';
+  } else if(fd.fault==='underlying_rhythm_check'){
+    cats.safety = fd.unpluggedDuringCheck ? 'fail' : 'pass';
+  } else if(fd.fault==='aflutter_rap'){
+    cats.safety='pass';
+  } else {
+    cats.safety='fail';
+  }
+  const score={pass:1,partial:0.5,fail:0};
+  const overallPercent=Math.round(TROUBLESHOOT_RUBRIC.reduce((s,r)=>s+r.weight*score[cats[r.key]],0)*100);
+  const passed = cats.recognition==='pass' && cats.priority_action==='pass' && cats.execution==='pass' && cats.safety!=='fail';
+  return {categories:cats, overallPercent, passed};
+}
+
+function isPracticeEmailValid(v){ return /^[^\s@]+@med\.usc\.edu$/i.test(String(v||'').trim()); }function updatePracticeStartEnabled(){
   const btn=$('practiceStart'); if(!btn) return;
   const idOk = PRACTICE.feedbackMode==='training' || ((($('practiceName').value||'').trim()) && isPracticeEmailValid($('practiceEmail').value));
   const err=$('practiceIdErr'); if(err) err.style.display=(PRACTICE.feedbackMode==='validation' && !idOk) ? '' : 'none';
@@ -2118,11 +2388,17 @@ function renderPracticeEventLog(){
 function renderPracticeScorecard(){
   const box=$('practiceScorecard'); if(!box || !PRACTICE.category) return;
   const cat=PRACTICE_CATEGORIES[PRACTICE.category];
+  const badge=s=>'<span class="tag '+(s==='pass'?'ok':s==='partial'?'partial':'warn')+'">'+s.toUpperCase()+'</span>';
   if(PRACTICE.category==='threshold' && PRACTICE.lastGrade){
     const g=PRACTICE.lastGrade;
-    const badge=s=>'<span class="tag '+(s==='pass'?'ok':s==='partial'?'partial':'warn')+'">'+s.toUpperCase()+'</span>';
     box.innerHTML = '<div class="sc-overall">'+(g.passed?'✓ Passed':'Not yet passing')+' — '+g.overallPercent+'%</div>'
       + THRESHOLD_RUBRIC.map(r=>'<div class="sc-row"><span class="sc-label">'+escHtml(r.label)+'<span class="sc-detail">'+escHtml(r.passWhen)+'</span></span>'+badge(g.categories[r.key])+'</div>').join('');
+    return;
+  }
+  if(PRACTICE.category==='troubleshoot' && PRACTICE.lastGrade){
+    const g=PRACTICE.lastGrade;
+    box.innerHTML = '<div class="sc-overall">'+(g.passed?'✓ Passed':'Not yet passing')+' — '+g.overallPercent+'%</div>'
+      + TROUBLESHOOT_RUBRIC.map(r=>'<div class="sc-row"><span class="sc-label">'+escHtml(r.label)+'<span class="sc-detail">'+escHtml(r.passWhen)+'</span></span>'+badge(g.categories[r.key])+'</div>').join('');
     return;
   }
   box.innerHTML='<div class="note">Auto-grading isn’t built yet for this phase — review the checklist below against what you saw and did.</div>'
@@ -2142,6 +2418,8 @@ function startPracticeAttempt(){
   resetFaultsAndConnections();
   if(PRACTICE.category==='threshold'){
     startThresholdAttempt();
+  } else if(PRACTICE.category==='troubleshoot'){
+    startTroubleshootAttempt();
   } else {
     set(PRACTICE_SMOKE_TEST[PRACTICE.category]);
     coach('Practice attempt started: '+PRACTICE_CATEGORIES[PRACTICE.category].label+'. (This phase runs a fixed setup — randomized cases arrive in a later update.) Work the device, then press “Finish attempt” when done.');
@@ -2156,7 +2434,9 @@ function finishPracticeAttempt(){
   renderPracticeStepInfo();
   const cat=PRACTICE_CATEGORIES[PRACTICE.category];
   PRACTICE.lastGrade = (PRACTICE.category==='threshold' && PRACTICE_FLOW.data && PRACTICE_FLOW.data.drill)
-    ? gradeThresholdAttempt(PRACTICE_FLOW.data) : null;
+    ? gradeThresholdAttempt(PRACTICE_FLOW.data)
+    : (PRACTICE.category==='troubleshoot' && PRACTICE_FLOW.data && PRACTICE_FLOW.data.fault)
+    ? gradeTroubleshootAttempt(PRACTICE_FLOW.data) : null;
   $('practiceDebriefTitle').textContent='Debrief — '+cat.label;
   $('practiceDebriefSub').textContent=(PRACTICE.feedbackMode==='training'?'Guided Practice':'Validation')+' attempt'+(PRACTICE.learnerName?' — '+PRACTICE.learnerName:'')+'.';
   renderPracticeScorecard();
