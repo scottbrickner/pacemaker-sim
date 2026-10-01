@@ -196,6 +196,24 @@
   .pmcq-opt.selected{box-shadow:0 0 0 2px #5db4ff inset}
   .pmcq-feedback{font-size:12px;color:#8b97a6;margin-top:6px;line-height:1.4}
 
+  /* ===== PRACTICE MODE: printable self-assessment (P6) =====
+     #practicePrintSummary lives outside #practiceDebrief on purpose — display:none on an
+     ancestor (the closed .modal) always wins over a descendant's own print visibility, so the
+     summary can't be nested inside the modal and still print correctly. */
+  #practicePrintSummary{display:none}
+  @media print{
+    body *{visibility:hidden}
+    #practicePrintSummary{display:block!important;visibility:visible;position:absolute;left:0;top:0;width:100%;padding:24px;color:#000;background:#fff;font-family:Georgia,serif}
+    #practicePrintSummary *{visibility:visible}
+    #practicePrintSummary h2{margin:0 0 4px;font-size:20px}
+    #practicePrintSummary .pp-meta{font-size:12px;color:#333;margin-bottom:16px;line-height:1.6}
+    #practicePrintSummary .pp-row{display:flex;justify-content:space-between;gap:16px;padding:8px 0;border-bottom:1px solid #999}
+    #practicePrintSummary .pp-label{font-weight:700}
+    #practicePrintSummary .pp-detail{font-size:11px;color:#444;display:block;margin-top:2px}
+    #practicePrintSummary .pp-status{text-transform:uppercase;font-weight:700;white-space:nowrap}
+    #practicePrintSummary .pp-next{margin-top:16px;font-size:13px;font-style:italic}
+  }
+
   /* ===== MONITOR (rhythm-strip framing) ===== */
   .monitor{background:#05060a;border:1px solid #1a1f27;border-radius:var(--radius-lg);padding:var(--space-4) var(--space-5);
     width:580px;flex:1 1 480px;min-width:340px;box-shadow:0 10px 30px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.02)}
@@ -492,6 +510,7 @@
       <input type="email" id="practiceEmail" placeholder="you@med.usc.edu" autocomplete="email">
     </div>
     <div class="note warn" id="practiceIdErr" style="display:none">Enter a name and a valid @med.usc.edu email to start a Validation attempt.</div>
+    <div class="note" id="practiceAttemptCount"></div>
 
     <button class="sbtn primary" id="practiceStart" disabled type="button" style="margin-top:14px">Start</button>
   </div>
@@ -504,11 +523,18 @@
     <div class="practice-scorecard" id="practiceScorecard"></div>
     <div class="debrieflog" id="practiceEventLog"></div>
     <div class="frow" style="margin-top:12px;gap:8px">
+      <button class="sbtn" id="practiceExportJson" type="button">Export JSON</button>
+      <button class="sbtn" id="practiceExportCsv" type="button">Export CSV</button>
+      <button class="sbtn" id="practicePrint" type="button">Print / Save as PDF</button>
+    </div>
+    <div class="frow" style="margin-top:8px;gap:8px">
       <button class="sbtn" id="practiceTryAnother" type="button">Try another</button>
       <button class="sbtn" id="practiceChooseDifferent" type="button">Choose a different category</button>
     </div>
   </div>
 </div>
+
+<div id="practicePrintSummary"></div>
 
 <div class="factab" id="facTab">FACILITATOR</div>
 <div class="facpanel" id="facPanel">
@@ -1846,7 +1872,7 @@ const _debriefClear=$('debriefClear'); if(_debriefClear) _debriefClear.onclick=(
 const PRACTICE={
   active:false, category:null, feedbackMode:'training', // 'training' (Guided Practice) | 'validation'
   learnerName:'', learnerEmail:'',
-  logStartIdx:0, startedAt:0, lastGrade:null
+  logStartIdx:0, startedAt:0, lastGrade:null, lastAttemptRecord:null
 };
 
 const PRACTICE_CATEGORIES={
@@ -2609,6 +2635,139 @@ function gradeSetupAttempt(fd){
   return {categories:cats, overallPercent, passed};
 }
 
+/* ===== P6: Attempts log, scoring normalization, export & printable self-assessment =====
+   Reads only PRACTICE.lastGrade/PRACTICE_FLOW.data after finishPracticeAttempt() already
+   computes them via the three grading functions above — no clinical logic here, no changes to
+   their return shapes. Storage is fully separate from the sync system (SYNC_KEY='sim5392_sync_v1',
+   'sim5392_relay') — practice mode never opens a sync channel at all (confirmed since P1). */
+
+/* Setup has no single existing human-readable rhythm-label source (two different <select> option
+   sets exist elsewhere in the file, neither a clean DOM source to read from) — small new map,
+   reusing the same wording those option lists already use. */
+const SETUP_CASE_LABELS={
+  sbrady:'Severe sinus bradycardia', avb1:'1° AV block', mobitz2:'2° AVB — Mobitz II',
+  chb:'3° AV block (complete)', junctional:'Junctional escape'
+};
+
+const SKILL_TRACKING_KEY='pacemaker-sim:skill-tracking';
+const SKILL_TRACKING_CAP=200; // an attempt is a whole finished exercise, not a per-tick log line
+let SKILL_TRACKING_MEM=null; // in-memory fallback if localStorage throws/unavailable
+function loadSkillTracking(){
+  if(SKILL_TRACKING_MEM) return SKILL_TRACKING_MEM;
+  let data={attempts:[],learnerIdentity:null};
+  try{ const raw=localStorage.getItem(SKILL_TRACKING_KEY); if(raw){ const parsed=JSON.parse(raw);
+    if(parsed&&Array.isArray(parsed.attempts)) data=parsed; } }catch(e){}
+  SKILL_TRACKING_MEM=data;
+  return data;
+}
+function saveSkillTracking(data){
+  SKILL_TRACKING_MEM=data;
+  try{ localStorage.setItem(SKILL_TRACKING_KEY,JSON.stringify(data)); }catch(e){}
+}
+function recordAttempt(record){
+  const data=loadSkillTracking();
+  data.attempts.push(record);
+  if(data.attempts.length>SKILL_TRACKING_CAP) data.attempts=data.attempts.slice(-SKILL_TRACKING_CAP);
+  if(record.learnerName||record.learnerEmail) data.learnerIdentity={name:record.learnerName,email:record.learnerEmail};
+  saveSkillTracking(data);
+}
+
+function rubricToCategories(rubric,gradeCategories){
+  return rubric.map(r=>({key:r.key,label:r.label,status:gradeCategories[r.key],detail:r.passWhen}));
+}
+function buildAttemptRecord(){
+  const fd=PRACTICE_FLOW.data, g=PRACTICE.lastGrade;
+  if(!g) return null;
+  let module,caseId,caseLabel,rubric;
+  if(PRACTICE.category==='threshold'){
+    module='threshold'; caseId=fd.drill.id; caseLabel=fd.drill.label; rubric=THRESHOLD_RUBRIC;
+  } else if(PRACTICE.category==='troubleshoot'){
+    module='troubleshoot'; caseId=fd.caseKey; caseLabel=(PACESCN[fd.caseKey]&&PACESCN[fd.caseKey].name)||fd.caseKey; rubric=TROUBLESHOOT_RUBRIC;
+  } else if(PRACTICE.category==='setup'){
+    module='setup'; caseId=fd.rhythm; caseLabel=SETUP_CASE_LABELS[fd.rhythm]||fd.rhythm; rubric=SETUP_RUBRIC;
+  } else {
+    return null;
+  }
+  return {
+    recordType:'pacemaker-skill-attempt',
+    attemptId:'att_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8),
+    module, caseId, caseLabel,
+    mode:PRACTICE.feedbackMode,
+    learnerName:PRACTICE.learnerName, learnerEmail:PRACTICE.learnerEmail,
+    overallPercent:g.overallPercent,
+    categories:rubricToCategories(rubric,g.categories),
+    passed:PRACTICE.feedbackMode==='validation' && !!g.passed, // training never counts as a real pass
+    recordedAt:new Date().toISOString()
+  };
+}
+
+function prefillLearnerIdentity(){
+  const identity=loadSkillTracking().learnerIdentity; if(!identity) return;
+  const nameEl=$('practiceName'), emailEl=$('practiceEmail');
+  if(nameEl && !nameEl.value) nameEl.value=identity.name||'';
+  if(emailEl && !emailEl.value) emailEl.value=identity.email||'';
+  updatePracticeStartEnabled();
+}
+function updatePracticeAttemptCount(){
+  const box=$('practiceAttemptCount'); if(!box) return;
+  const n=loadSkillTracking().attempts.length;
+  box.textContent=n+' attempt'+(n===1?'':'s')+' recorded on this device.';
+}
+
+function csvEscape(v){
+  const s=String(v==null?'':v);
+  return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s;
+}
+function attemptToCsv(record){
+  const cols=['attemptId','recordedAt','module','caseId','caseLabel','mode','learnerName','learnerEmail','overallPercent','passed','categoryKey','categoryLabel','categoryStatus','categoryDetail'];
+  const rows=[cols.join(',')];
+  record.categories.forEach(c=>{
+    rows.push([record.attemptId,record.recordedAt,record.module,record.caseId,record.caseLabel,record.mode,
+      record.learnerName,record.learnerEmail,record.overallPercent,record.passed,
+      c.key,c.label,c.status,c.detail].map(csvEscape).join(','));
+  });
+  return rows.join('\r\n');
+}
+function downloadBlob(content,filename,type){
+  const blob=new Blob([content],{type});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a'); a.href=url; a.download=filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+function downloadAttemptJson(){
+  const r=PRACTICE.lastAttemptRecord; if(!r) return;
+  downloadBlob(JSON.stringify(r,null,2),'pacemaker-attempt-'+r.attemptId+'.json','application/json');
+}
+function downloadAttemptCsv(){
+  const r=PRACTICE.lastAttemptRecord; if(!r) return;
+  downloadBlob(attemptToCsv(r),'pacemaker-attempt-'+r.attemptId+'.csv','text/csv');
+}
+
+function nextStepFocus(categories){
+  const fail=categories.find(c=>c.status==='fail');
+  if(fail) return 'Next-step focus: '+fail.label+' — '+fail.detail;
+  const partial=categories.find(c=>c.status==='partial');
+  if(partial) return 'Next-step focus: '+partial.label+' — '+partial.detail;
+  return 'All categories passed — maintain the standard.';
+}
+const PRACTICE_MODULE_LABELS={threshold:'Threshold Testing',troubleshoot:'Troubleshooting',setup:'Setup & Parameter Adjustments'};
+function renderPracticePrintSummary(record){
+  const box=$('practicePrintSummary'); if(!box||!record) return;
+  box.innerHTML =
+    '<h2>5392 Practice Self-Assessment</h2>'
+    + '<div class="pp-meta">'
+      + (record.learnerName?escHtml(record.learnerName)+' &mdash; ':'')+new Date(record.recordedAt).toLocaleString()+'<br>'
+      + escHtml(PRACTICE_MODULE_LABELS[record.module]||record.module)+' &mdash; '+escHtml(record.caseLabel)+'<br>'
+      + (record.mode==='training'?'Guided Practice':'Validation')+' attempt &mdash; Overall '+record.overallPercent+'%'
+    + '</div>'
+    + record.categories.map(c=>'<div class="pp-row"><span class="pp-label">'+escHtml(c.label)+'<span class="pp-detail">'+escHtml(c.detail)+'</span></span><span class="pp-status">'+escHtml(c.status)+'</span></div>').join('')
+    + '<div class="pp-next">'+escHtml(nextStepFocus(record.categories))+'</div>';
+}
+
+const _pExportJson=$('practiceExportJson'); if(_pExportJson) _pExportJson.onclick=downloadAttemptJson;
+const _pExportCsv=$('practiceExportCsv'); if(_pExportCsv) _pExportCsv.onclick=downloadAttemptCsv;
+const _pPrint=$('practicePrint'); if(_pPrint) _pPrint.onclick=()=>{ if(PRACTICE.lastAttemptRecord){ renderPracticePrintSummary(PRACTICE.lastAttemptRecord); window.print(); } };
+
 function isPracticeEmailValid(v){ return /^[^\s@]+@med\.usc\.edu$/i.test(String(v||'').trim()); }function updatePracticeStartEnabled(){
   const btn=$('practiceStart'); if(!btn) return;
   const idOk = PRACTICE.feedbackMode==='training' || ((($('practiceName').value||'').trim()) && isPracticeEmailValid($('practiceEmail').value));
@@ -2717,6 +2876,12 @@ function finishPracticeAttempt(){
     ? gradeTroubleshootAttempt(PRACTICE_FLOW.data)
     : (PRACTICE.category==='setup' && PRACTICE_FLOW.data && PRACTICE_FLOW.data.rhythm)
     ? gradeSetupAttempt(PRACTICE_FLOW.data) : null;
+  PRACTICE.lastAttemptRecord = PRACTICE.lastGrade ? buildAttemptRecord() : null;
+  if(PRACTICE.lastAttemptRecord){
+    recordAttempt(PRACTICE.lastAttemptRecord);
+    renderPracticePrintSummary(PRACTICE.lastAttemptRecord);
+    updatePracticeAttemptCount();
+  }
   $('practiceDebriefTitle').textContent='Debrief — '+cat.label;
   $('practiceDebriefSub').textContent=(PRACTICE.feedbackMode==='training'?'Guided Practice':'Validation')+' attempt'+(PRACTICE.learnerName?' — '+PRACTICE.learnerName:'')+'.';
   renderPracticeScorecard();
@@ -3174,6 +3339,8 @@ function applyRole(){
     if(dtTitles) dtTitles.innerHTML='<span class="badge">● PRACTICE MODE — self-directed</span>';
     document.title='5392 — Practice Mode';
     openPracticeHome();
+    prefillLearnerIdentity();
+    updatePracticeAttemptCount();
   } else {
     document.body.classList.add('dashview');
     document.querySelectorAll('.facpanel .fgrp').forEach(g=>{ g.style.display=''; }); // dashboard: show every control
