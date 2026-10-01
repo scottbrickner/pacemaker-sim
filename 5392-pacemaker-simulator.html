@@ -604,6 +604,7 @@
       <button class="ftab" data-tab="faults">Faults &amp; leads</button>
       <button class="ftab" data-tab="notify">Notifications</button>
       <button class="ftab" data-tab="debrief">Debrief</button>
+      <button class="ftab" data-tab="practicedata">Practice Data</button>
     </div>
     <span id="facToggle" tabindex="0" role="button" aria-label="Show or hide facilitator controls">▾ Hide</span>
   </div>
@@ -801,6 +802,22 @@
       <button class="sbtn" id="debriefDownload">Download .txt</button>
       <button class="sbtn" id="debriefClear">Clear</button>
     </div>
+  </div>
+
+  <div class="fgrp" data-tab="practicedata">
+    <h3>Practice Data (P8 — Teams handoff)</h3>
+    <div class="note">Reflects only practice activity recorded in this browser, on this device — it does not pull from other tablets or devices.</div>
+    <div class="note" id="pdSummary">0 attempts, 0 usability responses recorded on this device.</div>
+    <div class="frow">
+      <button class="sbtn" id="pdExportAttemptsCsv">Export all attempts (CSV)</button>
+      <button class="sbtn" id="pdExportPssuqCsv">Export all usability feedback (CSV)</button>
+    </div>
+    <h3 style="margin-top:14px">Save to Teams folder</h3>
+    <div class="note" id="pdFolderNote">Picks a shared folder (e.g. a synced Teams channel's Files folder) once, then re-saves both CSVs there on each click — no browser download needed.</div>
+    <div class="frow">
+      <button class="sbtn" id="pdSyncFolder">Save to Teams folder</button>
+    </div>
+    <div class="note" id="pdSyncStatus"></div>
   </div>
   </div><!-- /facdockbody -->
 </div><!-- /facpanel -->
@@ -2776,14 +2793,18 @@ function csvEscape(v){
   const s=String(v==null?'':v);
   return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s;
 }
+const ATTEMPT_CSV_COLS=['attemptId','recordedAt','module','caseId','caseLabel','mode','learnerName','learnerEmail','overallPercent','passed','categoryKey','categoryLabel','categoryStatus','categoryDetail'];
+function attemptCsvRows(record){
+  return record.categories.map(c=>[record.attemptId,record.recordedAt,record.module,record.caseId,record.caseLabel,record.mode,
+    record.learnerName,record.learnerEmail,record.overallPercent,record.passed,
+    c.key,c.label,c.status,c.detail].map(csvEscape).join(','));
+}
 function attemptToCsv(record){
-  const cols=['attemptId','recordedAt','module','caseId','caseLabel','mode','learnerName','learnerEmail','overallPercent','passed','categoryKey','categoryLabel','categoryStatus','categoryDetail'];
-  const rows=[cols.join(',')];
-  record.categories.forEach(c=>{
-    rows.push([record.attemptId,record.recordedAt,record.module,record.caseId,record.caseLabel,record.mode,
-      record.learnerName,record.learnerEmail,record.overallPercent,record.passed,
-      c.key,c.label,c.status,c.detail].map(csvEscape).join(','));
-  });
+  return [ATTEMPT_CSV_COLS.join(','), ...attemptCsvRows(record)].join('\r\n');
+}
+function bulkAttemptsCsv(records){
+  const rows=[ATTEMPT_CSV_COLS.join(',')];
+  records.forEach(r=>rows.push(...attemptCsvRows(r)));
   return rows.join('\r\n');
 }
 function downloadBlob(content,filename,type){
@@ -3078,15 +3099,19 @@ function recordPssuqResponse(response){
   if(data.pssuqResponses.length>SKILL_TRACKING_CAP) data.pssuqResponses=data.pssuqResponses.slice(-SKILL_TRACKING_CAP);
   saveSkillTracking(data);
 }
-function pssuqToCsv(response){
-  const cols=['responseId','recordedAt','toolId','toolLabel','functionLabels','learnerName','learnerEmail','overallScore','sysUseScore','infoQualScore','intQualScore','itemNum','subscale','value'];
-  const rows=[cols.join(',')];
+const PSSUQ_CSV_COLS=['responseId','recordedAt','toolId','toolLabel','functionLabels','learnerName','learnerEmail','overallScore','sysUseScore','infoQualScore','intQualScore','itemNum','subscale','value'];
+function pssuqCsvRows(response){
   const fnJoined=response.functionLabels.join(';');
-  response.items.forEach(it=>{
-    rows.push([response.responseId,response.recordedAt,response.toolId,response.toolLabel,fnJoined,
-      response.learnerName,response.learnerEmail,response.overallScore,response.sysUseScore,response.infoQualScore,response.intQualScore,
-      it.itemNum,it.subscale,it.value].map(csvEscape).join(','));
-  });
+  return response.items.map(it=>[response.responseId,response.recordedAt,response.toolId,response.toolLabel,fnJoined,
+    response.learnerName,response.learnerEmail,response.overallScore,response.sysUseScore,response.infoQualScore,response.intQualScore,
+    it.itemNum,it.subscale,it.value].map(csvEscape).join(','));
+}
+function pssuqToCsv(response){
+  return [PSSUQ_CSV_COLS.join(','), ...pssuqCsvRows(response)].join('\r\n');
+}
+function bulkPssuqCsv(responses){
+  const rows=[PSSUQ_CSV_COLS.join(',')];
+  responses.forEach(r=>rows.push(...pssuqCsvRows(r)));
   return rows.join('\r\n');
 }
 function downloadPssuqJson(){
@@ -3122,6 +3147,104 @@ const _pssuqSkip=$('pssuqSkip'); if(_pssuqSkip) _pssuqSkip.onclick=closePssuqPro
 const _pssuqClose=$('pssuqClose'); if(_pssuqClose) _pssuqClose.onclick=closePssuqPrompt;
 const _pssuqExportJson=$('pssuqExportJson'); if(_pssuqExportJson) _pssuqExportJson.onclick=downloadPssuqJson;
 const _pssuqExportCsv=$('pssuqExportCsv'); if(_pssuqExportCsv) _pssuqExportCsv.onclick=downloadPssuqCsv;
+
+/* ===== P8: Teams handoff — facilitator-only bulk export + Teams-folder sync =====
+   Facilitator-side only (lives in #facPanel, never shown in ?role=practice/?role=learner).
+   SKILL_TRACKING_KEY is plain localStorage with no cross-device sync of its own, so this
+   reads whatever practice data happens to be on THIS browser/device — the facilitator is
+   expected to be on the same kiosk device learners used. Vanilla-JS port of
+   ~/vasoactive-sim/src/sync/teamsFolder.ts, adapted from TS/xlsx-ArrayBuffer to plain CSV
+   text: same IndexedDB-remembered-handle pattern, but a full-file overwrite on each sync
+   instead of incremental read-append-write (simpler/safer at this record volume — attempts
+   and pssuqResponses are each capped at SKILL_TRACKING_CAP=200). No telemetry hook this
+   phase — no real Power Automate/Dataverse endpoint exists yet for this sim. */
+
+function isFolderSaveSupported(){ return typeof window!=='undefined' && 'showDirectoryPicker' in window; }
+
+const PD_DB_NAME='pacemaker-sim-skill-fs', PD_STORE='handles', PD_KEY='teamsFolder';
+function pdOpenDb(){
+  return new Promise((resolve,reject)=>{
+    const req=indexedDB.open(PD_DB_NAME,1);
+    req.onupgradeneeded=()=>req.result.createObjectStore(PD_STORE);
+    req.onsuccess=()=>resolve(req.result);
+    req.onerror=()=>reject(req.error);
+  });
+}
+async function pdIdbGet(key){
+  const db=await pdOpenDb();
+  return new Promise((resolve,reject)=>{
+    const req=db.transaction(PD_STORE,'readonly').objectStore(PD_STORE).get(key);
+    req.onsuccess=()=>resolve(req.result||null);
+    req.onerror=()=>reject(req.error);
+  });
+}
+async function pdIdbSet(key,value){
+  const db=await pdOpenDb();
+  return new Promise((resolve,reject)=>{
+    const tx=db.transaction(PD_STORE,'readwrite');
+    tx.objectStore(PD_STORE).put(value,key);
+    tx.oncomplete=()=>resolve();
+    tx.onerror=()=>reject(tx.error);
+  });
+}
+async function pdGetSavedFolder(){
+  const handle=await pdIdbGet(PD_KEY);
+  if(!handle) return null;
+  try{ return (await handle.queryPermission({mode:'readwrite'}))==='granted' ? handle : null; }catch(e){ return null; }
+}
+async function pdPickTeamsFolder(){
+  const handle=await window.showDirectoryPicker({id:'pacemaker-skill-teams-folder',mode:'readwrite'});
+  await pdIdbSet(PD_KEY,handle);
+  return handle;
+}
+async function pdWriteTextFileToFolder(folderHandle,filename,text){
+  const fileHandle=await folderHandle.getFileHandle(filename,{create:true});
+  const writable=await fileHandle.createWritable();
+  await writable.write(text);
+  await writable.close();
+}
+
+const PD_ATTEMPTS_FILENAME='Pacemaker-Sim-Skill-Tracking.csv', PD_PSSUQ_FILENAME='Pacemaker-Sim-PSSUQ-Responses.csv';
+function updatePracticeDataSummary(){
+  const box=$('pdSummary'); if(!box) return;
+  const data=loadSkillTracking();
+  box.textContent=data.attempts.length+' attempt'+(data.attempts.length===1?'':'s')+', '
+    +data.pssuqResponses.length+' usability response'+(data.pssuqResponses.length===1?'':'s')+' recorded on this device.';
+}
+function initPracticeDataFolderUi(){
+  const btn=$('pdSyncFolder'), note=$('pdFolderNote');
+  if(!isFolderSaveSupported()){
+    if(btn) btn.style.display='none';
+    if(note) note.textContent='Saving to a Teams folder isn’t supported in this browser — use the downloads above instead.';
+  }
+}
+async function syncPracticeDataToTeamsFolder(){
+  const status=$('pdSyncStatus');
+  try{
+    let handle=await pdGetSavedFolder();
+    if(!handle) handle=await pdPickTeamsFolder();
+    const data=loadSkillTracking();
+    await pdWriteTextFileToFolder(handle,PD_ATTEMPTS_FILENAME,bulkAttemptsCsv(data.attempts));
+    await pdWriteTextFileToFolder(handle,PD_PSSUQ_FILENAME,bulkPssuqCsv(data.pssuqResponses));
+    if(status) status.textContent='Saved to “'+handle.name+'” at '+new Date().toLocaleTimeString()+'.';
+  }catch(e){
+    if(e && e.name==='AbortError') return; // user cancelled the folder picker — not an error
+    if(status) status.textContent='Couldn’t save to the folder: '+(e&&e.message?e.message:'unknown error')+'.';
+  }
+}
+
+const _pdExportAttemptsCsv=$('pdExportAttemptsCsv'); if(_pdExportAttemptsCsv) _pdExportAttemptsCsv.onclick=()=>{
+  downloadBlob(bulkAttemptsCsv(loadSkillTracking().attempts),'pacemaker-all-attempts.csv','text/csv');
+};
+const _pdExportPssuqCsv=$('pdExportPssuqCsv'); if(_pdExportPssuqCsv) _pdExportPssuqCsv.onclick=()=>{
+  downloadBlob(bulkPssuqCsv(loadSkillTracking().pssuqResponses),'pacemaker-all-usability-feedback.csv','text/csv');
+};
+const _pdSyncFolder=$('pdSyncFolder'); if(_pdSyncFolder) _pdSyncFolder.onclick=syncPracticeDataToTeamsFolder;
+
+if(ROLE!=='practice' && ROLE!=='learner'){
+  updatePracticeDataSummary();
+  initPracticeDataFolderUi();
+}
 
 /* ========= QR CODE (inlined helper — ISO/IEC 18004, byte-mode only) =========
    Renders the learner link as a scannable code for the two-device pairing flow.
