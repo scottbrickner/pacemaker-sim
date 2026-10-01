@@ -1838,13 +1838,10 @@ const _debriefDownload=$('debriefDownload'); if(_debriefDownload) _debriefDownlo
 const _debriefClear=$('debriefClear'); if(_debriefClear) _debriefClear.onclick=()=>{ EVENT_LOG.length=0; renderDebriefLog(); };
 
 /* ========= PRACTICE MODE (?role=practice) =========
-   Self-directed, no facilitator. P1 scope: role/shell/scaffolding only — reuses set()/
+   Self-directed, no facilitator. P1 built role/shell/scaffolding; P2 = Threshold Testing;
+   P3a/P3b = Troubleshooting; P5 = Setup & Parameter Adjustments. Reuses set()/
    resetFaultsAndConnections() exactly like the facilitator scenario library does, and reuses
-   the existing debrief-log machinery (EVENT_LOG/fmtElapsed/escHtml) for the event trail.
-   Randomization and auto-grading are NOT built yet (P2 = Threshold Testing, P3 = Troubleshooting,
-   P3b = Setup & Parameter Adjustments) — "Start" below runs one FIXED smoke-test instance per
-   category, grounded in the same rhythm/threshold value patterns PACESCN already uses, purely to
-   verify the shell end-to-end this phase. */
+   the existing debrief-log machinery (EVENT_LOG/fmtElapsed/escHtml) for the event trail. */
 
 const PRACTICE={
   active:false, category:null, feedbackMode:'training', // 'training' (Guided Practice) | 'validation'
@@ -1880,9 +1877,10 @@ const PRACTICE_CATEGORIES={
   }
 };
 
-/* Temporary fixed instances — not randomized yet (see P2/P3/P3b above). */
+/* Original fixed P1 smoke-test instances — threshold/troubleshoot/setup are all superseded by
+   their own randomize*() functions below; kept for reference. */
 const PRACTICE_SMOKE_TEST={
-  setup:{rhythm:'chb',aRate:90,vRate:35,aThr:1.0,vThr:1.5,aSig:2.5,vSig:10},
+  setup:{rhythm:'chb',aRate:90,vRate:35,aThr:1.0,vThr:1.5,aSig:2.5,vSig:10}, // superseded by randomizeSetupCase() below; kept for reference
   threshold:{rhythm:'sbrady',aRate:50,vRate:50,vThr:2.0,vSig:8,aThr:1.0,aSig:2.5}, // superseded by randomizeThresholdCase() below; kept for reference
   troubleshoot:{rhythm:'chb',aRate:84,vRate:38,vThr:1.5}
 };
@@ -2012,7 +2010,7 @@ function practiceMcqAnswer(idx){
   setTimeout(()=>{ PRACTICE_FLOW.data.mcqLocked=false; practiceFlowAdvance(); },delay);
 }
 function practiceCheck(){
-  if(PRACTICE.category==='threshold' || PRACTICE.category==='troubleshoot') practiceFlowCheck();
+  if(PRACTICE.category==='threshold' || PRACTICE.category==='troubleshoot' || PRACTICE.category==='setup') practiceFlowCheck();
   if(PRACTICE.category==='troubleshoot') checkEscalationGuidance();
 }
 function practiceCoach(t,sev){
@@ -2521,6 +2519,96 @@ function checkEscalationGuidance(){
   if(PRACTICE.feedbackMode==='training') practiceCoach('Consider escalating: '+ESCALATION_GUIDANCE.recommendedActions.join('; '));
 }
 
+/* ===== P5: Setup & Parameter Adjustments — guided multi-step walkthrough =====
+   New pedagogical content, not mirrored from learner-practice-data.json (no "setup" key exists
+   there). Grounded only in PRACTICE_CATEGORIES.setup.competentIf. A 7-step gated walkthrough
+   starting from the device's TRUE default state (unpowered, fully disconnected) — connecting
+   leads is itself the first step, and pressing power is the learner's own real button-press
+   rather than code calling powerOn() directly (unlike every other category). */
+
+const SETUP_RHYTHM_POOL=['sbrady','avb1','mobitz2','chb','junctional'];
+/* DDD (with atrial tracking) is correct for every pool rhythm except junctional, whose aDef:0
+   means there is no atrial activity to track — VVI is the single correct answer there. */
+const SETUP_MODE_RULE={sbrady:'DDD',avb1:'DDD',mobitz2:'DDD',chb:'DDD',junctional:'VVI'};
+const SETUP_RATE_CEILING_PPM=40; // grading-reasonableness bound, not a new clinical claim
+let SETUP_RECENT=[];
+function pickNextSetupRhythm(){
+  const avoid=new Set(SETUP_RECENT.slice(-2));
+  let pool=SETUP_RHYTHM_POOL.filter(r=>!avoid.has(r));
+  if(!pool.length) pool=SETUP_RHYTHM_POOL;
+  const rhythm=pool[Math.floor(Math.random()*pool.length)];
+  SETUP_RECENT.push(rhythm); if(SETUP_RECENT.length>4) SETUP_RECENT.shift();
+  return rhythm;
+}
+function randomizeSetupCase(){
+  const rhythm=pickNextSetupRhythm(); const base=RHY[rhythm];
+  const aThr=round1(weightedPick(THRESHOLD_RAND.captureThresholdMa));
+  const vThr=round1(weightedPick(THRESHOLD_RAND.captureThresholdMa));
+  const setArgs=Object.assign({},THRESHOLD_BASE_DEFAULTS,{rhythm,aRate:base.aDef,vRate:base.vDef,aThr,vThr});
+  return {rhythm,setArgs};
+}
+
+function buildSetupSteps(rhythm){
+  const targetMode=SETUP_MODE_RULE[rhythm];
+  return [
+    {key:'connect_leads',
+      instruction:'Connect both leads to the generator — open the connection panel (tap either socket) and reconnect all four points.',
+      checkComplete:()=>aConnected()&&vConnected()},
+    {key:'power_on', instruction:'Power on the device.',
+      checkComplete:()=>S.power===true,
+      onComplete:()=>{ S.rate=RANGES.rate.min; S.vOut=0.2; S.aOut=0.2;
+        practiceCoach('Power is on, but the device is at its resting defaults — it still needs a rate, mode, and output set for this patient.'); }},
+    {key:'select_mode', instruction:'Select the pacing mode appropriate to this rhythm.',
+      checkComplete:()=>S.mode===targetMode && (targetMode!=='DDD'||S.aTrack)},
+    {key:'set_rate', instruction:'Set a clinically reasonable backup rate above the intrinsic rhythm.',
+      checkComplete:()=>{ const floor=intrinsicRateFor({drill:{channel:'V'}});
+        return S.rate>floor+PF_RATE_MARGIN_PPM && S.rate<=floor+SETUP_RATE_CEILING_PPM; }},
+    {key:'verify_capture', instruction:'Raise the output on every paced channel until capture is confirmed.',
+      checkComplete:()=>{ const f=MODES[S.mode];
+        const vOk=S.vOut>=P.vThr, aOk=f.pA?S.aOut>=P.aThr:true; return vOk&&aOk; }},
+    {key:'set_margin', instruction:'Set a safe output margin — double the capture threshold on every paced channel.',
+      checkComplete:()=>{ const f=MODES[S.mode];
+        const vR=S.vOut/P.vThr, vOk=vR>=THRESHOLD_MARGIN.stimAcceptable[0]&&vR<=THRESHOLD_MARGIN.stimAcceptable[1];
+        const aOk=f.pA ? (()=>{ const r=S.aOut/P.aThr; return r>=THRESHOLD_MARGIN.stimAcceptable[0]&&r<=THRESHOLD_MARGIN.stimAcceptable[1]; })() : true;
+        return vOk&&aOk; }},
+    {key:'lock', instruction:'Lock the device before leaving the bedside.',
+      checkComplete:()=>S.locked===true}
+  ];
+}
+
+function startSetupAttempt(){
+  /* true-default-state override: resetFaultsAndConnections() (already run by
+     startPracticeAttempt()'s shared prologue) leaves conn.*=true — the opposite of what this
+     category needs. Mirrors P3b's postFault precedent, applied unconditionally since every
+     Setup attempt needs it (not just one case). */
+  conn.aGen=conn.aLead=conn.vGen=conn.vLead=false; S.power=false; S.locked=false;
+  const rc=randomizeSetupCase();
+  set(rc.setArgs);
+  practiceCoach('New pacemaker setup: connect the leads, power on, select the appropriate mode, set rate and output, confirm capture, set a safe margin, and lock the device before you leave the bedside.');
+  practiceFlowStart(buildSetupSteps(rc.rhythm), {rhythm:rc.rhythm, targetMode:SETUP_MODE_RULE[rc.rhythm]});
+}
+
+const SETUP_RUBRIC=[
+  {key:'modeRecognition',label:'Rhythm recognized & correct mode',weight:0.3,
+    passWhen:'selected DDD with atrial tracking, or the mode appropriate to the rhythm (VVI when there is no atrial activity to track)'},
+  {key:'capture',label:'Capture confirmed',weight:0.3,passWhen:'capture confirmed on every paced channel'},
+  {key:'margin',label:'Safe output margin',weight:0.3,passWhen:'output set to ≥2x the capture threshold on every paced channel'},
+  {key:'lock',label:'Device locked',weight:0.1,passWhen:'device locked before leaving the bedside'}
+];
+function gradeSetupAttempt(fd){
+  const sd=fd.stepDone||[];
+  const cats={
+    modeRecognition: sd[2] ? 'pass' : 'fail',
+    capture:         sd[4] ? 'pass' : 'fail',
+    margin:          sd[5] ? 'pass' : 'fail',
+    lock:            sd[6] ? 'pass' : 'fail'
+  };
+  const score={pass:1,partial:0.5,fail:0};
+  const overallPercent=Math.round(SETUP_RUBRIC.reduce((s,r)=>s+r.weight*score[cats[r.key]],0)*100);
+  const passed=Object.values(cats).every(c=>c==='pass');
+  return {categories:cats, overallPercent, passed};
+}
+
 function isPracticeEmailValid(v){ return /^[^\s@]+@med\.usc\.edu$/i.test(String(v||'').trim()); }function updatePracticeStartEnabled(){
   const btn=$('practiceStart'); if(!btn) return;
   const idOk = PRACTICE.feedbackMode==='training' || ((($('practiceName').value||'').trim()) && isPracticeEmailValid($('practiceEmail').value));
@@ -2583,6 +2671,12 @@ function renderPracticeScorecard(){
       + (g.escalationFired ? '<div class="note">Escalation guidance triggered — '+escHtml(g.escalationTrigger)+'. '+escHtml(ESCALATION_GUIDANCE.note)+'</div>' : '');
     return;
   }
+  if(PRACTICE.category==='setup' && PRACTICE.lastGrade){
+    const g=PRACTICE.lastGrade;
+    box.innerHTML = '<div class="sc-overall">'+(g.passed?'✓ Passed':'Not yet passing')+' — '+g.overallPercent+'%</div>'
+      + SETUP_RUBRIC.map(r=>'<div class="sc-row"><span class="sc-label">'+escHtml(r.label)+'<span class="sc-detail">'+escHtml(r.passWhen)+'</span></span>'+badge(g.categories[r.key])+'</div>').join('');
+    return;
+  }
   box.innerHTML='<div class="note">Auto-grading isn’t built yet for this phase — review the checklist below against what you saw and did.</div>'
     + cat.competentIf.map(c=>'<div class="sc-row"><span>'+escHtml(c)+'</span></div>').join('');
 }
@@ -2602,6 +2696,8 @@ function startPracticeAttempt(){
     startThresholdAttempt();
   } else if(PRACTICE.category==='troubleshoot'){
     startTroubleshootAttempt();
+  } else if(PRACTICE.category==='setup'){
+    startSetupAttempt();
   } else {
     set(PRACTICE_SMOKE_TEST[PRACTICE.category]);
     coach('Practice attempt started: '+PRACTICE_CATEGORIES[PRACTICE.category].label+'. (This phase runs a fixed setup — randomized cases arrive in a later update.) Work the device, then press “Finish attempt” when done.');
@@ -2618,7 +2714,9 @@ function finishPracticeAttempt(){
   PRACTICE.lastGrade = (PRACTICE.category==='threshold' && PRACTICE_FLOW.data && PRACTICE_FLOW.data.drill)
     ? gradeThresholdAttempt(PRACTICE_FLOW.data)
     : (PRACTICE.category==='troubleshoot' && PRACTICE_FLOW.data && PRACTICE_FLOW.data.caseKey)
-    ? gradeTroubleshootAttempt(PRACTICE_FLOW.data) : null;
+    ? gradeTroubleshootAttempt(PRACTICE_FLOW.data)
+    : (PRACTICE.category==='setup' && PRACTICE_FLOW.data && PRACTICE_FLOW.data.rhythm)
+    ? gradeSetupAttempt(PRACTICE_FLOW.data) : null;
   $('practiceDebriefTitle').textContent='Debrief — '+cat.label;
   $('practiceDebriefSub').textContent=(PRACTICE.feedbackMode==='training'?'Guided Practice':'Validation')+' attempt'+(PRACTICE.learnerName?' — '+PRACTICE.learnerName:'')+'.';
   renderPracticeScorecard();
