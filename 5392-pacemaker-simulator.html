@@ -228,6 +228,14 @@
   .pssuq-anchor{font-size:9.5px;color:#7c93ad;font-weight:400;white-space:nowrap}
   .pssuq-na{margin-left:10px;border-left:1px dashed #2a333d;padding-left:12px;color:#8b97a6}
 
+  /* ===== PRACTICE MODE: accessibility & touch-target pass (P9) =====
+     Scoped to Practice Mode's own controls, not the shared facilitator chrome — .sbtn is used
+     throughout the pre-existing (desk/mouse) facilitator dashboard too, so its touch-target
+     bump is scoped by container to the four learner-facing surfaces only. */
+  .practice-card,.pm-opt,.pmcq-opt,.pssuq-opt,.practice-id-row input,.pssuq-context-row select{min-height:44px}
+  #practiceHome .sbtn,#practiceBar .sbtn,#practiceDebrief .sbtn,#practicePssuq .sbtn{min-height:44px}
+  .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+
   /* ===== MONITOR (rhythm-strip framing) ===== */
   .monitor{background:#05060a;border:1px solid #1a1f27;border-radius:var(--radius-lg);padding:var(--space-4) var(--space-5);
     width:580px;flex:1 1 480px;min-width:340px;box-shadow:0 10px 30px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.02)}
@@ -498,15 +506,15 @@
 
     <div class="practice-section-label">Choose a skill area</div>
     <div class="practice-cards" id="practiceCards">
-      <button class="practice-card" data-cat="setup" type="button">
+      <button class="practice-card" data-cat="setup" type="button" aria-pressed="false">
         <div class="pc-title">Setup &amp; Parameter Adjustments</div>
         <div class="pc-sub">Reach a target mode, rate, and safe outputs from a given starting rhythm.</div>
       </button>
-      <button class="practice-card" data-cat="threshold" type="button">
+      <button class="practice-card" data-cat="threshold" type="button" aria-pressed="false">
         <div class="pc-title">Threshold Testing</div>
         <div class="pc-sub">Find a capture or sensing threshold and set a safe margin.</div>
       </button>
-      <button class="practice-card" data-cat="troubleshoot" type="button">
+      <button class="practice-card" data-cat="troubleshoot" type="button" aria-pressed="false">
         <div class="pc-title">Troubleshooting</div>
         <div class="pc-sub">Recognize and correct a pacing problem.</div>
       </button>
@@ -514,8 +522,8 @@
 
     <div class="practice-section-label">Feedback mode</div>
     <div class="practice-modetoggle" id="practiceModeToggle">
-      <button class="pm-opt on" data-mode="training" type="button">Guided Practice<span class="pm-sub">Live hints while you work</span></button>
-      <button class="pm-opt" data-mode="validation" type="button">Validation<span class="pm-sub">Debrief only, at the end</span></button>
+      <button class="pm-opt on" data-mode="training" type="button" aria-pressed="true">Guided Practice<span class="pm-sub">Live hints while you work</span></button>
+      <button class="pm-opt" data-mode="validation" type="button" aria-pressed="false">Validation<span class="pm-sub">Debrief only, at the end</span></button>
     </div>
 
     <div class="practice-section-label" id="practiceIdLabel">Your name &amp; email <span id="practiceIdNote">(optional in Guided Practice)</span></div>
@@ -2079,17 +2087,19 @@ function renderPracticeMcqBox(){
   if(!st || st.type!=='mcq'){ box.style.display='none'; box.innerHTML=''; return; }
   box.style.display='';
   box.innerHTML='<div class="pmcq-stem">'+escHtml(st.instruction)+'</div>'
-    +'<div class="pmcq-options">'+st.mcq.options.map((o,i)=>'<button type="button" class="pmcq-opt" data-idx="'+i+'">'+escHtml(o.label)+'</button>').join('')+'</div>'
-    +'<div class="pmcq-feedback" id="practiceMcqFeedback"></div>';
+    +'<div class="pmcq-options">'+st.mcq.options.map((o,i)=>'<button type="button" class="pmcq-opt" data-idx="'+i+'" aria-pressed="false">'+escHtml(o.label)+'</button>').join('')+'</div>'
+    +'<div class="pmcq-feedback" id="practiceMcqFeedback" aria-live="polite"></div>';
   box.querySelectorAll('.pmcq-opt').forEach(btn=>{ btn.onclick=()=>practiceMcqAnswer(parseInt(btn.dataset.idx,10)); });
 }
 function renderPracticeMcqResult(st,idx){
   const box=$('practiceMcq'); if(!box) return;
   const btns=box.querySelectorAll('.pmcq-opt');
   btns.forEach(b=>b.disabled=true);
+  btns[idx].setAttribute('aria-pressed','true');
   if(PRACTICE.feedbackMode==='training'){
     btns[idx].classList.add(st.mcq.options[idx].correct?'correct':'incorrect');
-    st.mcq.options.forEach((o,i)=>{ if(o.correct&&i!==idx) btns[i].classList.add('correct'); });
+    btns[idx].insertAdjacentHTML('beforeend', st.mcq.options[idx].correct?'<span class="sr-only"> — correct</span>':'<span class="sr-only"> — your answer, incorrect</span>');
+    st.mcq.options.forEach((o,i)=>{ if(o.correct&&i!==idx){ btns[i].classList.add('correct'); btns[i].insertAdjacentHTML('beforeend','<span class="sr-only"> — correct</span>'); } });
     const fb=$('practiceMcqFeedback'); if(fb) fb.textContent=st.mcq.teaching||'';
   } else {
     btns[idx].classList.add('selected');
@@ -2856,7 +2866,7 @@ function isPracticeEmailValid(v){ return /^[^\s@]+@med\.usc\.edu$/i.test(String(
 
 function openPracticeHome(){
   const m=$('practiceHome'); if(!m) return;
-  document.querySelectorAll('#practiceCards .practice-card').forEach(c=>c.classList.remove('on'));
+  document.querySelectorAll('#practiceCards .practice-card').forEach(c=>{ c.classList.remove('on'); c.setAttribute('aria-pressed','false'); });
   PRACTICE.category=null;
   m.classList.add('open');
   updatePracticeStartEnabled();
@@ -2865,16 +2875,16 @@ function closePracticeHome(){ const m=$('practiceHome'); if(m) m.classList.remov
 
 document.querySelectorAll('#practiceCards .practice-card').forEach(card=>{
   card.onclick=()=>{
-    document.querySelectorAll('#practiceCards .practice-card').forEach(c=>c.classList.remove('on'));
-    card.classList.add('on');
+    document.querySelectorAll('#practiceCards .practice-card').forEach(c=>{ c.classList.remove('on'); c.setAttribute('aria-pressed','false'); });
+    card.classList.add('on'); card.setAttribute('aria-pressed','true');
     PRACTICE.category=card.dataset.cat;
     updatePracticeStartEnabled();
   };
 });
 document.querySelectorAll('#practiceModeToggle .pm-opt').forEach(opt=>{
   opt.onclick=()=>{
-    document.querySelectorAll('#practiceModeToggle .pm-opt').forEach(o=>o.classList.remove('on'));
-    opt.classList.add('on');
+    document.querySelectorAll('#practiceModeToggle .pm-opt').forEach(o=>{ o.classList.remove('on'); o.setAttribute('aria-pressed','false'); });
+    opt.classList.add('on'); opt.setAttribute('aria-pressed','true');
     PRACTICE.feedbackMode=opt.dataset.mode;
     const note=$('practiceIdNote');
     if(note) note.textContent = PRACTICE.feedbackMode==='training' ? '(optional in Guided Practice)' : '(required for Validation)';
@@ -3049,9 +3059,9 @@ function renderPssuqItems(){
   PSSUQ_ITEMS.forEach(it=>groups[it.subscale].push(it));
   const renderGroup=items=>items.map(it=>{
     const opts=[1,2,3,4,5,6,7].map(v=>
-      '<button class="pssuq-opt" data-item="'+it.itemNum+'" data-val="'+v+'" type="button">'+v+(v===1?'<span class="pssuq-anchor">Strongly Agree</span>':v===7?'<span class="pssuq-anchor">Strongly Disagree</span>':'')+'</button>'
+      '<button class="pssuq-opt" data-item="'+it.itemNum+'" data-val="'+v+'" type="button" aria-pressed="false">'+v+(v===1?'<span class="pssuq-anchor">Strongly Agree</span>':v===7?'<span class="pssuq-anchor">Strongly Disagree</span>':'')+'</button>'
     ).join('');
-    const naBtn = it.na ? '<button class="pssuq-opt pssuq-na" data-item="'+it.itemNum+'" data-val="" type="button">N/A</button>' : '';
+    const naBtn = it.na ? '<button class="pssuq-opt pssuq-na" data-item="'+it.itemNum+'" data-val="" type="button" aria-pressed="false">N/A</button>' : '';
     return '<div class="pssuq-item" data-item="'+it.itemNum+'"><div class="pssuq-stem">'+it.itemNum+'. '+escHtml(it.stem)+'</div><div class="pssuq-scale">'+opts+naBtn+'</div></div>';
   }).join('');
   const sysEl=$('pssuqItemsSysUse'), infoEl=$('pssuqItemsInfoQual'), intEl=$('pssuqItemsIntQual');
@@ -3061,8 +3071,8 @@ function renderPssuqItems(){
   document.querySelectorAll('#pssuqBody .pssuq-opt').forEach(btn=>{
     btn.onclick=()=>{
       const item=btn.dataset.item;
-      document.querySelectorAll('#pssuqBody .pssuq-opt[data-item="'+item+'"]').forEach(b=>b.classList.remove('on'));
-      btn.classList.add('on');
+      document.querySelectorAll('#pssuqBody .pssuq-opt[data-item="'+item+'"]').forEach(b=>{ b.classList.remove('on'); b.setAttribute('aria-pressed','false'); });
+      btn.classList.add('on'); btn.setAttribute('aria-pressed','true');
       PSSUQ_STATE.values[item] = btn.dataset.val===''? null : Number(btn.dataset.val);
     };
   });
