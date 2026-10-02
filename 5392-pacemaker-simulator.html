@@ -214,26 +214,13 @@
     #practicePrintSummary .pp-next{margin-top:16px;font-size:13px;font-style:italic}
   }
 
-  /* ===== PRACTICE MODE: standalone PSSUQ usability survey (P7, audit tool) ===== */
-  .pssuq-context-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
-  .pssuq-context-row select{flex:1;min-width:200px;background:#0c1118;border:1px solid #28303a;border-radius:8px;padding:8px 10px;color:#e7edf3;font:inherit}
-  .pssuq-fn-options{display:flex;flex-direction:column;gap:6px;margin-bottom:4px}
-  .pssuq-fn-opt{display:flex;gap:8px;align-items:center;font-size:12.5px;color:#c7d0da;cursor:pointer}
-  .pssuq-item{margin-bottom:14px}
-  .pssuq-stem{font-size:12.5px;color:#c7d0da;margin-bottom:6px;line-height:1.4}
-  .pssuq-scale{display:flex;flex-wrap:wrap;gap:6px;align-items:flex-start}
-  .pssuq-opt{font-size:12.5px;min-width:34px;text-align:center;padding:8px 6px;border-radius:8px;border:1px solid #2a333d;background:#161c24;color:#dbe3ec;cursor:pointer;font:inherit;display:flex;flex-direction:column;gap:2px}
-  .pssuq-opt:hover:not(:disabled){border-color:#3b82f6;background:#18222e}
-  .pssuq-opt.on{box-shadow:0 0 0 2px #5db4ff inset;border-color:#3b82f6}
-  .pssuq-anchor{font-size:9.5px;color:#7c93ad;font-weight:400;white-space:nowrap}
-  .pssuq-na{margin-left:10px;border-left:1px dashed #2a333d;padding-left:12px;color:#8b97a6}
 
   /* ===== PRACTICE MODE: accessibility & touch-target pass (P9) =====
      Scoped to Practice Mode's own controls, not the shared facilitator chrome — .sbtn is used
      throughout the pre-existing (desk/mouse) facilitator dashboard too, so its touch-target
      bump is scoped by container to the four learner-facing surfaces only. */
-  .practice-card,.pm-opt,.pmcq-opt,.pssuq-opt,.practice-id-row input,.pssuq-context-row select{min-height:44px}
-  #practiceHome .sbtn,#practiceBar .sbtn,#practiceDebrief .sbtn,#practicePssuq .sbtn{min-height:44px}
+  .practice-card,.pm-opt,.pmcq-opt,.practice-id-row input{min-height:44px}
+  #practiceHome .sbtn,#practiceBar .sbtn,#practiceDebrief .sbtn{min-height:44px}
   .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 
   /* ===== MONITOR (rhythm-strip framing) ===== */
@@ -534,7 +521,6 @@
     <div class="note warn" id="practiceIdErr" style="display:none">Enter a name and a valid @med.usc.edu email to start a Validation attempt.</div>
     <div class="note" id="practiceAttemptCount"></div>
 
-    <button class="sbtn" id="practiceGiveFeedback" type="button" style="margin-top:10px">Usability feedback</button>
     <button class="sbtn primary" id="practiceStart" disabled type="button" style="margin-top:8px">Start</button>
   </div>
 </div>
@@ -553,48 +539,6 @@
     <div class="frow" style="margin-top:8px;gap:8px">
       <button class="sbtn" id="practiceTryAnother" type="button">Try another</button>
       <button class="sbtn" id="practiceChooseDifferent" type="button">Choose a different category</button>
-    </div>
-  </div>
-</div>
-
-<div class="modal" id="practicePssuq">
-  <div class="modalbox">
-    <h2>Usability feedback</h2>
-    <div class="sub2">16 short questions about using this simulator — for scheduled usability audits. Optional, about 2 minutes.</div>
-    <div id="pssuqBody">
-      <div class="practice-section-label">What were you using?</div>
-      <div class="pssuq-context-row">
-        <select id="pssuqTool"></select>
-      </div>
-      <div class="pssuq-fn-options" id="pssuqFunctions"></div>
-
-      <div class="practice-section-label">Your name &amp; email <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></div>
-      <div class="practice-id-row">
-        <input type="text" id="pssuqName" placeholder="Full name" autocomplete="name">
-        <input type="email" id="pssuqEmail" placeholder="you@med.usc.edu" autocomplete="email">
-      </div>
-
-      <div class="practice-section-label">System usefulness</div>
-      <div id="pssuqItemsSysUse"></div>
-      <div class="practice-section-label">Information quality</div>
-      <div id="pssuqItemsInfoQual"></div>
-      <div class="practice-section-label">Interface quality</div>
-      <div id="pssuqItemsIntQual"></div>
-
-      <div class="frow" style="margin-top:12px;gap:8px">
-        <button class="sbtn primary" id="pssuqSubmit" type="button">Submit feedback</button>
-        <button class="sbtn" id="pssuqSkip" type="button">Not now</button>
-      </div>
-    </div>
-    <div id="pssuqDone" style="display:none">
-      <div class="note">Thanks — your feedback was recorded on this device.</div>
-      <div class="frow" style="gap:8px">
-        <button class="sbtn" id="pssuqExportJson" type="button">Export my feedback (JSON)</button>
-        <button class="sbtn" id="pssuqExportCsv" type="button">Export my feedback (CSV)</button>
-      </div>
-      <div class="frow" style="margin-top:8px">
-        <button class="sbtn primary" id="pssuqClose" type="button">Close</button>
-      </div>
     </div>
   </div>
 </div>
@@ -815,13 +759,14 @@
   <div class="fgrp" data-tab="practicedata">
     <h3>Practice Data (P8 — Teams handoff)</h3>
     <div class="note">Reflects only practice activity recorded in this browser, on this device — it does not pull from other tablets or devices.</div>
-    <div class="note" id="pdSummary">0 attempts, 0 usability responses recorded on this device.</div>
+    <div class="note" id="pdSummary">0 attempts recorded on this device.</div>
     <div class="frow">
       <button class="sbtn" id="pdExportAttemptsCsv">Export all attempts (CSV)</button>
-      <button class="sbtn" id="pdExportPssuqCsv">Export all usability feedback (CSV)</button>
+      <button class="sbtn" id="pdExportPssuqCsv" style="display:none">Export legacy usability feedback (CSV)</button>
     </div>
+    <div class="note">Usability evaluation now runs as an observer-led session in the hub (PSSUQ Version 3): <a href="https://scottbrickner.github.io/hub-pssuq/?tool=pacemaker-5392" target="_blank" rel="noopener" style="color:#5db4ff">open the Hub PSSUQ session form</a>. The survey that used to be built into Practice Mode has been removed.</div>
     <h3 style="margin-top:14px">Save to Teams folder</h3>
-    <div class="note" id="pdFolderNote">Picks a shared folder (e.g. a synced Teams channel's Files folder) once, then re-saves both CSVs there on each click — no browser download needed.</div>
+    <div class="note" id="pdFolderNote">Picks a shared folder (e.g. a synced Teams channel's Files folder) once, then re-saves the attempts CSV there on each click — no browser download needed.</div>
     <div class="frow">
       <button class="sbtn" id="pdSyncFolder">Save to Teams folder</button>
     </div>
@@ -1954,7 +1899,7 @@ const _debriefClear=$('debriefClear'); if(_debriefClear) _debriefClear.onclick=(
 const PRACTICE={
   active:false, category:null, feedbackMode:'training', // 'training' (Guided Practice) | 'validation'
   learnerName:'', learnerEmail:'',
-  logStartIdx:0, startedAt:0, lastGrade:null, lastAttemptRecord:null, lastPssuqResponse:null
+  logStartIdx:0, startedAt:0, lastGrade:null, lastAttemptRecord:null
 };
 
 const PRACTICE_CATEGORIES={
@@ -2741,7 +2686,7 @@ function loadSkillTracking(){
   let data={attempts:[],learnerIdentity:null};
   try{ const raw=localStorage.getItem(SKILL_TRACKING_KEY); if(raw){ const parsed=JSON.parse(raw);
     if(parsed&&Array.isArray(parsed.attempts)) data=parsed; } }catch(e){}
-  if(!Array.isArray(data.pssuqResponses)) data.pssuqResponses=[]; // P7: added later, old blobs lack it
+  if(!Array.isArray(data.pssuqResponses)) data.pssuqResponses=[]; // legacy: responses from the removed built-in survey (P7); kept so they stay exportable
   SKILL_TRACKING_MEM=data;
   return data;
 }
@@ -2989,174 +2934,26 @@ const _pChooseDifferent=$('practiceChooseDifferent'); if(_pChooseDifferent) _pCh
   openPracticeHome();
 };
 
-/* ===== P7: Standalone PSSUQ usability survey (audit tool, not tied to an attempt) =====
-   Manual-only: opened via the "Usability feedback" button on Practice Home, or by loading
-   ?role=practice&survey=pssuq directly (see applyRole()'s practice branch). Independent of
-   PRACTICE_FLOW/PRACTICE.active and of finishPracticeAttempt() — no attempt is linked or required.
-   Rides the SAME SKILL_TRACKING_KEY blob as the P6 attempts log (data.pssuqResponses), reusing
-   loadSkillTracking/saveSkillTracking/SKILL_TRACKING_CAP/downloadBlob/csvEscape as-is.
-
-   This is the widely-published 16-item PSSUQ, version 3 (Lewis, J.R., 2002, "Psychometric
-   Evaluation of the PSSUQ Using Data from Five Years of Usability Studies," reproduced in many
-   public usability references since). Wording below is reproduced from memory of the standard
-   published instrument for internal NPD training use, not fetched from or verified against a
-   specific licensed/IBM source in this session — flagged as a residual fidelity risk, not
-   claimed as byte-exact. */
-const PSSUQ_ITEMS=[
-  {itemNum:1,subscale:'sysuse',stem:'Overall, I am satisfied with how easy it is to use this system.'},
-  {itemNum:2,subscale:'sysuse',stem:'It was simple to use this system.'},
-  {itemNum:3,subscale:'sysuse',stem:'I can effectively complete my work using this system.'},
-  {itemNum:4,subscale:'sysuse',stem:'I am able to complete my work quickly using this system.'},
-  {itemNum:5,subscale:'sysuse',stem:'I am able to efficiently complete my work using this system.'},
-  {itemNum:6,subscale:'sysuse',stem:'I feel comfortable using this system.'},
-  {itemNum:7,subscale:'sysuse',stem:'It was easy to learn to use this system.'},
-  {itemNum:8,subscale:'sysuse',stem:'I believe I became productive quickly using this system.'},
-  {itemNum:9,subscale:'infoqual',stem:'The system gives error messages that clearly tell me how to fix problems.',na:true},
-  {itemNum:10,subscale:'infoqual',stem:'Whenever I make a mistake using the system, I recover easily and quickly.',na:true},
-  {itemNum:11,subscale:'infoqual',stem:'The information (such as on-line help, on-screen messages, and other documentation) provided with this system is clear.'},
-  {itemNum:12,subscale:'infoqual',stem:'It is easy to find the information I needed.'},
-  {itemNum:13,subscale:'infoqual',stem:'The information provided for the system is easy to understand.'},
-  {itemNum:14,subscale:'infoqual',stem:'The information is effective in helping me complete the tasks and scenarios.'},
-  {itemNum:15,subscale:'infoqual',stem:'The organization of information on the system screens is clear.'},
-  {itemNum:16,subscale:'intqual',stem:'The interface of this system is pleasant.'}
-];
-const PSSUQ_SUBSCALE_LABELS={sysuse:'System usefulness',infoqual:'Information quality',intqual:'Interface quality'};
-
-const PSSUQ_TOOLS=[
-  {id:'pacemaker-5392',label:'Pacemaker Simulator',functions:[
-    {id:'threshold',label:'Threshold Testing'},
-    {id:'troubleshoot',label:'Troubleshooting'},
-    {id:'setup',label:'Setup & Parameter Adjustments'}
-  ]}
-  // append {id,label,functions:[{id,label},...]} here for each additional simulator/tool evaluated
-];
-
-let PSSUQ_STATE={values:{},functionIds:[]};
-
-function renderPssuqToolSelect(){
-  const sel=$('pssuqTool'); if(!sel) return;
-  sel.innerHTML=PSSUQ_TOOLS.map(t=>'<option value="'+escHtml(t.id)+'">'+escHtml(t.label)+'</option>').join('');
-  sel.onchange=()=>renderPssuqFunctions();
-}
-function renderPssuqFunctions(){
-  const sel=$('pssuqTool'), box=$('pssuqFunctions'); if(!sel||!box) return;
-  const tool=PSSUQ_TOOLS.find(t=>t.id===sel.value)||PSSUQ_TOOLS[0];
-  PSSUQ_STATE.functionIds=[];
-  box.innerHTML=(tool?tool.functions:[]).map(f=>
-    '<label class="pssuq-fn-opt"><input type="checkbox" data-fn="'+escHtml(f.id)+'"> '+escHtml(f.label)+'</label>'
-  ).join('');
-  box.querySelectorAll('input[type=checkbox]').forEach(cb=>{
-    cb.onchange=()=>{
-      const id=cb.dataset.fn;
-      PSSUQ_STATE.functionIds = cb.checked
-        ? PSSUQ_STATE.functionIds.concat([id])
-        : PSSUQ_STATE.functionIds.filter(x=>x!==id);
-    };
-  });
-}
-function renderPssuqItems(){
-  const groups={sysuse:[],infoqual:[],intqual:[]};
-  PSSUQ_ITEMS.forEach(it=>groups[it.subscale].push(it));
-  const renderGroup=items=>items.map(it=>{
-    const opts=[1,2,3,4,5,6,7].map(v=>
-      '<button class="pssuq-opt" data-item="'+it.itemNum+'" data-val="'+v+'" type="button" aria-pressed="false">'+v+(v===1?'<span class="pssuq-anchor">Strongly Agree</span>':v===7?'<span class="pssuq-anchor">Strongly Disagree</span>':'')+'</button>'
-    ).join('');
-    const naBtn = it.na ? '<button class="pssuq-opt pssuq-na" data-item="'+it.itemNum+'" data-val="" type="button" aria-pressed="false">N/A</button>' : '';
-    return '<div class="pssuq-item" data-item="'+it.itemNum+'"><div class="pssuq-stem">'+it.itemNum+'. '+escHtml(it.stem)+'</div><div class="pssuq-scale">'+opts+naBtn+'</div></div>';
-  }).join('');
-  const sysEl=$('pssuqItemsSysUse'), infoEl=$('pssuqItemsInfoQual'), intEl=$('pssuqItemsIntQual');
-  if(sysEl) sysEl.innerHTML=renderGroup(groups.sysuse);
-  if(infoEl) infoEl.innerHTML=renderGroup(groups.infoqual);
-  if(intEl) intEl.innerHTML=renderGroup(groups.intqual);
-  document.querySelectorAll('#pssuqBody .pssuq-opt').forEach(btn=>{
-    btn.onclick=()=>{
-      const item=btn.dataset.item;
-      document.querySelectorAll('#pssuqBody .pssuq-opt[data-item="'+item+'"]').forEach(b=>{ b.classList.remove('on'); b.setAttribute('aria-pressed','false'); });
-      btn.classList.add('on'); btn.setAttribute('aria-pressed','true');
-      PSSUQ_STATE.values[item] = btn.dataset.val===''? null : Number(btn.dataset.val);
-    };
-  });
-}
-function pssuqScore(values){
-  const nums=values.filter(v=>v!=null);
-  if(!nums.length) return null;
-  return Math.round((nums.reduce((a,b)=>a+b,0)/nums.length)*100)/100;
-}
-function buildPssuqResponse(){
-  const sel=$('pssuqTool');
-  const tool=PSSUQ_TOOLS.find(t=>t.id===(sel&&sel.value))||PSSUQ_TOOLS[0];
-  const fnLabels=(tool?tool.functions:[]).filter(f=>PSSUQ_STATE.functionIds.includes(f.id)).map(f=>f.label);
-  const items=PSSUQ_ITEMS.map(it=>({itemNum:it.itemNum,subscale:it.subscale,value: PSSUQ_STATE.values.hasOwnProperty(it.itemNum)?PSSUQ_STATE.values[it.itemNum]:null}));
-  const bySub=s=>items.filter(i=>i.subscale===s).map(i=>i.value);
-  return {
-    recordType:'pacemaker-pssuq-response',
-    responseId:'pssuq_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8),
-    toolId:tool?tool.id:null, toolLabel:tool?tool.label:null,
-    functionIds:PSSUQ_STATE.functionIds.slice(), functionLabels:fnLabels,
-    items,
-    sysUseScore:pssuqScore(bySub('sysuse')),
-    infoQualScore:pssuqScore(bySub('infoqual')),
-    intQualScore:pssuqScore(bySub('intqual')),
-    overallScore:pssuqScore(items.map(i=>i.value)),
-    learnerName:($('pssuqName')?$('pssuqName').value:'').trim(),
-    learnerEmail:($('pssuqEmail')?$('pssuqEmail').value:'').trim(),
-    recordedAt:new Date().toISOString()
-  };
-}
-function recordPssuqResponse(response){
-  const data=loadSkillTracking();
-  data.pssuqResponses.push(response);
-  if(data.pssuqResponses.length>SKILL_TRACKING_CAP) data.pssuqResponses=data.pssuqResponses.slice(-SKILL_TRACKING_CAP);
-  saveSkillTracking(data);
-}
+/* ===== Legacy usability-survey export (the P7 built-in survey was removed 2026-10-02) =====
+   Usability evaluation moved to the observer-led Hub PSSUQ (PSSUQ Version 3, Lewis 2002):
+   https://scottbrickner.github.io/hub-pssuq/?tool=pacemaker-5392
+   The built-in survey collected a 16-item set that was NOT Version 3 (8 system-usefulness,
+   7 information, 1 interface item), so its scores are not comparable with the hub's or with
+   published norms. Nothing here collects new responses. What remains is only the CSV export
+   of responses already sitting in SKILL_TRACKING_KEY (data.pssuqResponses) on a device, so
+   that data is not stranded. Safe to delete once no device holds any. */
 const PSSUQ_CSV_COLS=['responseId','recordedAt','toolId','toolLabel','functionLabels','learnerName','learnerEmail','overallScore','sysUseScore','infoQualScore','intQualScore','itemNum','subscale','value'];
 function pssuqCsvRows(response){
-  const fnJoined=response.functionLabels.join(';');
-  return response.items.map(it=>[response.responseId,response.recordedAt,response.toolId,response.toolLabel,fnJoined,
+  const fnJoined=(response.functionLabels||[]).join(';');
+  return (response.items||[]).map(it=>[response.responseId,response.recordedAt,response.toolId,response.toolLabel,fnJoined,
     response.learnerName,response.learnerEmail,response.overallScore,response.sysUseScore,response.infoQualScore,response.intQualScore,
     it.itemNum,it.subscale,it.value].map(csvEscape).join(','));
-}
-function pssuqToCsv(response){
-  return [PSSUQ_CSV_COLS.join(','), ...pssuqCsvRows(response)].join('\r\n');
 }
 function bulkPssuqCsv(responses){
   const rows=[PSSUQ_CSV_COLS.join(',')];
   responses.forEach(r=>rows.push(...pssuqCsvRows(r)));
   return rows.join('\r\n');
 }
-function downloadPssuqJson(){
-  const r=PRACTICE.lastPssuqResponse; if(!r) return;
-  downloadBlob(JSON.stringify(r,null,2),'pacemaker-pssuq-'+r.responseId+'.json','application/json');
-}
-function downloadPssuqCsv(){
-  const r=PRACTICE.lastPssuqResponse; if(!r) return;
-  downloadBlob(pssuqToCsv(r),'pacemaker-pssuq-'+r.responseId+'.csv','text/csv');
-}
-function openPssuqPrompt(){
-  PSSUQ_STATE={values:{},functionIds:[]};
-  renderPssuqToolSelect();
-  renderPssuqFunctions();
-  renderPssuqItems();
-  const nameEl=$('pssuqName'), emailEl=$('pssuqEmail');
-  if(nameEl) nameEl.value=''; if(emailEl) emailEl.value='';
-  const body=$('pssuqBody'), done=$('pssuqDone');
-  if(body) body.style.display=''; if(done) done.style.display='none';
-  const m=$('practicePssuq'); if(m) m.classList.add('open');
-}
-function closePssuqPrompt(){ const m=$('practicePssuq'); if(m) m.classList.remove('open'); }
-
-const _pGiveFeedback=$('practiceGiveFeedback'); if(_pGiveFeedback) _pGiveFeedback.onclick=openPssuqPrompt;
-const _pssuqSubmit=$('pssuqSubmit'); if(_pssuqSubmit) _pssuqSubmit.onclick=()=>{
-  const response=buildPssuqResponse();
-  recordPssuqResponse(response);
-  PRACTICE.lastPssuqResponse=response;
-  const body=$('pssuqBody'), done=$('pssuqDone');
-  if(body) body.style.display='none'; if(done) done.style.display='';
-};
-const _pssuqSkip=$('pssuqSkip'); if(_pssuqSkip) _pssuqSkip.onclick=closePssuqPrompt;
-const _pssuqClose=$('pssuqClose'); if(_pssuqClose) _pssuqClose.onclick=closePssuqPrompt;
-const _pssuqExportJson=$('pssuqExportJson'); if(_pssuqExportJson) _pssuqExportJson.onclick=downloadPssuqJson;
-const _pssuqExportCsv=$('pssuqExportCsv'); if(_pssuqExportCsv) _pssuqExportCsv.onclick=downloadPssuqCsv;
 
 /* ===== P8: Teams handoff — facilitator-only bulk export + Teams-folder sync =====
    Facilitator-side only (lives in #facPanel, never shown in ?role=practice/?role=learner).
@@ -3166,7 +2963,7 @@ const _pssuqExportCsv=$('pssuqExportCsv'); if(_pssuqExportCsv) _pssuqExportCsv.o
    ~/vasoactive-sim/src/sync/teamsFolder.ts, adapted from TS/xlsx-ArrayBuffer to plain CSV
    text: same IndexedDB-remembered-handle pattern, but a full-file overwrite on each sync
    instead of incremental read-append-write (simpler/safer at this record volume — attempts
-   and pssuqResponses are each capped at SKILL_TRACKING_CAP=200). No telemetry hook this
+   are capped at SKILL_TRACKING_CAP=200). No telemetry hook this
    phase — no real Power Automate/Dataverse endpoint exists yet for this sim. */
 
 function isFolderSaveSupported(){ return typeof window!=='undefined' && 'showDirectoryPicker' in window; }
@@ -3218,8 +3015,10 @@ const PD_ATTEMPTS_FILENAME='Pacemaker-Sim-Skill-Tracking.csv', PD_PSSUQ_FILENAME
 function updatePracticeDataSummary(){
   const box=$('pdSummary'); if(!box) return;
   const data=loadSkillTracking();
-  box.textContent=data.attempts.length+' attempt'+(data.attempts.length===1?'':'s')+', '
-    +data.pssuqResponses.length+' usability response'+(data.pssuqResponses.length===1?'':'s')+' recorded on this device.';
+  const legacy=data.pssuqResponses.length;
+  box.textContent=data.attempts.length+' attempt'+(data.attempts.length===1?'':'s')+' recorded on this device.'
+    +(legacy? ' Also '+legacy+' response'+(legacy===1?'':'s')+' from the removed built-in usability survey.' : '');
+  const legacyBtn=$('pdExportPssuqCsv'); if(legacyBtn) legacyBtn.style.display = legacy ? '' : 'none';
 }
 function initPracticeDataFolderUi(){
   const btn=$('pdSyncFolder'), note=$('pdFolderNote');
@@ -3235,7 +3034,7 @@ async function syncPracticeDataToTeamsFolder(){
     if(!handle) handle=await pdPickTeamsFolder();
     const data=loadSkillTracking();
     await pdWriteTextFileToFolder(handle,PD_ATTEMPTS_FILENAME,bulkAttemptsCsv(data.attempts));
-    await pdWriteTextFileToFolder(handle,PD_PSSUQ_FILENAME,bulkPssuqCsv(data.pssuqResponses));
+    if(data.pssuqResponses.length) await pdWriteTextFileToFolder(handle,PD_PSSUQ_FILENAME,bulkPssuqCsv(data.pssuqResponses)); // legacy only
     if(status) status.textContent='Saved to “'+handle.name+'” at '+new Date().toLocaleTimeString()+'.';
   }catch(e){
     if(e && e.name==='AbortError') return; // user cancelled the folder picker — not an error
@@ -3697,7 +3496,6 @@ function applyRole(){
     openPracticeHome();
     prefillLearnerIdentity();
     updatePracticeAttemptCount();
-    if(qp.get('survey')==='pssuq') openPssuqPrompt();
   } else {
     document.body.classList.add('dashview');
     document.querySelectorAll('.facpanel .fgrp').forEach(g=>{ g.style.display=''; }); // dashboard: show every control
